@@ -110,7 +110,7 @@ export default function SecurityPage() {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-12">
+    <div className="w-full px-4 sm:px-8 lg:px-12 xl:px-16 py-10 md:py-14 space-y-12">
       {/* Page Header */}
       <div className="max-w-3xl space-y-3">
         <SecurityBadge status="VERIFIED" label="Security architecture & threat model" />

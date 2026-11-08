@@ -15,7 +15,7 @@ export function VaultFallback({
   className = "",
 }: VaultFallbackProps) {
   const sizeClasses = {
-    hero: "w-full h-[400px] md:h-[500px]",
+    hero: "w-full h-full min-h-[400px]",
     mini: "w-24 h-24",
     inline: "w-16 h-16",
   };

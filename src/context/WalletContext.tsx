@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { generateUserEncryptionKeyPair, KeyPair } from "@/lib/crypto/key-wrapping";
+import type { KeyPair } from "@/lib/crypto/key-wrapping";
 import { NEAR_CONFIG } from "@/lib/near/config";
 
 interface WalletContextType {
@@ -61,9 +61,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         try {
           keyPair = JSON.parse(storedKeyMapStr);
         } catch {
+          const { generateUserEncryptionKeyPair } = await import("@/lib/crypto/key-wrapping");
           keyPair = generateUserEncryptionKeyPair();
         }
       } else {
+        const { generateUserEncryptionKeyPair } = await import("@/lib/crypto/key-wrapping");
         keyPair = generateUserEncryptionKeyPair();
         localStorage.setItem(`proofroom_keys_${targetAccount}`, JSON.stringify(keyPair));
       }

@@ -24,13 +24,13 @@ export function Navbar() {
   ];
 
   return (
-    <nav className="sticky top-0 z-50 max-w-[1240px] mx-auto w-full pt-3 px-3 sm:px-5">
-      <div className="bar glass flex items-center justify-between gap-4 p-2 sm:px-4 rounded-[18px] transition-colors">
+    <nav className="sticky top-0 z-50 w-full pt-2 sm:pt-3 px-3 sm:px-6 md:px-8 lg:px-12 xl:px-16">
+      <div className="bar glass w-full flex items-center justify-between gap-2 sm:gap-4 p-1.5 sm:p-2 sm:px-4 rounded-[18px] transition-colors">
         {/* Brand Logo */}
-        <Link href="/" className="logo flex items-center gap-2.5 font-bold tracking-tight text-ink text-base">
+        <Link href="/" className="logo flex items-center gap-2 sm:gap-2.5 font-bold tracking-tight text-ink text-sm sm:text-base shrink-0">
           <i
             aria-hidden="true"
-            className="w-7 h-7 rounded-[9px] bg-accent text-accent-ink grid place-items-center not-italic text-sm font-bold shadow-sm"
+            className="w-7 h-7 rounded-[9px] bg-accent text-accent-ink grid place-items-center not-italic text-sm font-bold shadow-sm shrink-0"
           >
             ◈
           </i>
@@ -59,7 +59,7 @@ export function Navbar() {
         </div>
 
         {/* Controls: Network Pill, Theme, Wallet */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           {isConnected && <TestnetPill className="hidden sm:inline-flex" />}
 
           <ThemeToggle />
@@ -69,12 +69,12 @@ export function Navbar() {
               <button
                 type="button"
                 onClick={() => setWalletDropdownOpen(!walletDropdownOpen)}
-                className="btn text-xs font-semibold font-mono py-2 px-3 gap-1.5"
+                className="btn text-xs font-semibold font-mono py-1.5 px-2.5 sm:py-2 sm:px-3 gap-1.5 min-h-[38px] sm:min-h-[44px]"
                 aria-expanded={walletDropdownOpen}
               >
-                <span className="w-2 h-2 rounded-full bg-ok" aria-hidden="true" />
-                <span className="truncate max-w-[120px]">{accountId}</span>
-                <ChevronDown className="w-3.5 h-3.5 text-muted" aria-hidden="true" />
+                <span className="w-2 h-2 rounded-full bg-ok shrink-0" aria-hidden="true" />
+                <span className="truncate max-w-[85px] sm:max-w-[120px]">{accountId}</span>
+                <ChevronDown className="w-3.5 h-3.5 text-muted shrink-0" aria-hidden="true" />
               </button>
 
               {walletDropdownOpen && (
@@ -128,8 +128,12 @@ export function Navbar() {
               )}
             </div>
           ) : (
-            <Link href="/connect" className="btn primary">
-              Connect wallet
+            <Link
+              href="/connect"
+              className="btn primary text-xs sm:text-sm py-1.5 px-3 sm:py-2 sm:px-4 min-h-[38px] sm:min-h-[44px]"
+            >
+              <span className="hidden sm:inline">Connect wallet</span>
+              <span className="sm:hidden">Connect</span>
             </Link>
           )}
 
@@ -137,7 +141,7 @@ export function Navbar() {
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-xl text-ink hover:bg-line/15 touch-target flex items-center justify-center"
+            className="md:hidden p-1.5 sm:p-2 rounded-xl text-ink hover:bg-line/15 min-h-[38px] min-w-[38px] flex items-center justify-center shrink-0"
             aria-label="Toggle navigation menu"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}

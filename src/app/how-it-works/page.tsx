@@ -109,7 +109,7 @@ pub fn record_query_receipt(
   ];
 
   return (
-    <div className="flex flex-col items-center w-full py-12 md:py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-12">
+    <div className="flex flex-col items-center w-full py-10 md:py-16 px-4 sm:px-8 lg:px-12 xl:px-16 space-y-12">
       {/* Page Title */}
       <div className="text-center max-w-3xl space-y-3">
         <SecurityBadge status="VERIFIED" label="End-to-end technical pipeline" />

@@ -6,26 +6,26 @@ import { VaultHeroHud } from "@/components/vault/VaultHeroHud";
 
 export default function LandingPage() {
   return (
-    <main id="top" className="wrap w-full">
-      {/* Hero Section */}
-      <div className="hero grid grid-cols-1 lg:grid-cols-[1fr_1.1fr] gap-6 items-center py-10 sm:py-12">
+    <main id="top" className="wrap">
+      {/* Hero Section matching prototype 1:1 */}
+      <div className="hero">
         <div>
-          <span className="pill glass mb-3.5 inline-flex">
+          <span className="pill glass">
             <span className="dot" style={{ background: "var(--ok)" }} />
             <span>Runs on NEAR Testnet · Intel TDX</span>
           </span>
 
-          <h1 className="text-ink font-bold leading-[1.03] tracking-[-0.035em] my-3.5 sm:my-4">
+          <h1>
             Share your private documents. Prove who can read them.
           </h1>
 
-          <p className="lead text-muted text-base sm:text-lg mb-6 leading-relaxed max-w-[46ch]">
+          <p className="lead">
             ProofRoom is a secure data room for fundraising and due diligence. Files are locked in
             your browser, AI answers questions inside a checked secure environment, and every step
             leaves a receipt.
           </p>
 
-          <div className="cta flex flex-wrap gap-3">
+          <div className="cta">
             <Link className="btn primary" href="/app/rooms/new">
               Create a private room
             </Link>
@@ -36,9 +36,7 @@ export default function LandingPage() {
         </div>
 
         {/* 3D Stage with HUD */}
-        <div className="w-full">
-          <VaultHeroHud />
-        </div>
+        <VaultHeroHud />
       </div>
 
       {/* Four Steps Section */}

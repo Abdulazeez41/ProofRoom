@@ -1,467 +1,380 @@
 "use client";
 
-import React, { useRef, useMemo, useEffect, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import React, { useRef, useEffect } from "react";
 import * as THREE from "three";
 import { VaultState } from "@/hooks/useVaultState";
-
-interface VaultSceneContentProps {
-  state: VaultState;
-  reducedMotion: boolean;
-  isMobile: boolean;
-  dragRot: number;
-}
-
-function VaultModel({ state, reducedMotion, isMobile, dragRot }: VaultSceneContentProps) {
-  const groupRef = useRef<THREE.Group>(null);
-  const vaultMeshRef = useRef<THREE.Mesh>(null);
-  const edgesRef = useRef<THREE.LineSegments>(null);
-  const coreRef = useRef<THREE.Mesh>(null);
-  const ringRef = useRef<THREE.Mesh>(null);
-  const scanRef = useRef<THREE.Mesh>(null);
-  const blockRef = useRef<THREE.Mesh>(null);
-
-  const docsRef = useRef<THREE.Mesh[]>([]);
-  const nodesRef = useRef<THREE.Mesh[]>([]);
-  const linesRef = useRef<THREE.Line[]>([]);
-  const pulsesRef = useRef<THREE.Mesh[]>([]);
-
-  // Interpolated state variables matching prototype
-  const st8 = useRef({
-    rad: 4.2,
-    lock: 0,
-    scan: 0,
-    blk: 0,
-    shake: 0,
-  });
-
-  const cBad = useMemo(() => new THREE.Color("#B63A3A"), []);
-  const cWarn = useMemo(() => new THREE.Color("#C98A1A"), []);
-  const cOk = useMemo(() => new THREE.Color("#0F7A52"), []);
-  const cAcc = useMemo(() => new THREE.Color("#0F5C47"), []);
-  const cPaper = useMemo(() => new THREE.Color("#FFFCF4"), []);
-  const cInk = useMemo(() => new THREE.Color("#16211C"), []);
-  const cMuted = useMemo(() => new THREE.Color("#5E6B63"), []);
-  const cBlue = useMemo(() => new THREE.Color("#3E63D9"), []);
-
-  // Geometry allocations
-  const vaultGeo = useMemo(() => new THREE.BoxGeometry(2.2, 2.2, 2.2), []);
-  const edgesGeo = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(2.6, 2.6, 2.6)), []);
-  const coreGeo = useMemo(() => new THREE.IcosahedronGeometry(0.55, 1), []);
-  const ringGeo = useMemo(() => new THREE.TorusGeometry(3.7, 0.025, 8, 160), []);
-  const scanGeo = useMemo(() => new THREE.TorusGeometry(2.1, 0.05, 8, 96), []);
-  const docGeo = useMemo(() => new THREE.BoxGeometry(0.95, 1.25, 0.06), []);
-  const nodeGeo = useMemo(() => new THREE.SphereGeometry(0.38, 24, 24), []);
-  const pulseGeo = useMemo(() => new THREE.SphereGeometry(0.09, 12, 12), []);
-  const blockGeo = useMemo(() => new THREE.BoxGeometry(1, 0.55, 1), []);
-
-  // Connection line points
-  const leftLineGeo = useMemo(
-    () => new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-5.2, 0.4, 0), new THREE.Vector3(0, 0, 0)]),
-    []
-  );
-  const rightLineGeo = useMemo(
-    () => new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(5.2, 0.4, 0), new THREE.Vector3(0, 0, 0)]),
-    []
-  );
-
-  useFrame((_, delta) => {
-    const dt = Math.min(delta, 0.05);
-    const t = performance.now() * 0.001;
-    const k = reducedMotion ? 1 : 1 - Math.pow(0.001, dt);
-
-    let tgtRad = 4.2;
-    let tgtLock = 0;
-    let tgtScan = 0;
-    let tgtBlk = 0;
-    let shake = 0;
-    let lineCol = cMuted;
-
-    if (state === "encrypting") {
-      tgtRad = 1.9;
-      tgtLock = 1;
-    } else if (state === "verifying") {
-      tgtRad = 3.6;
-      tgtScan = 1;
-      lineCol = cBlue;
-    } else if (state === "anchored") {
-      tgtRad = 3.8;
-      tgtBlk = 1;
-      lineCol = cOk;
-    } else if (state === "failed") {
-      tgtRad = 5.2;
-      shake = 1;
-      lineCol = cBad;
-    }
-
-    // Prototype lerp function: L(a, b, k) = a + (b - a) * k
-    st8.current.rad += (tgtRad - st8.current.rad) * k;
-    st8.current.lock += (tgtLock - st8.current.lock) * k;
-    st8.current.scan += (tgtScan - st8.current.scan) * k;
-    st8.current.blk += (tgtBlk - st8.current.blk) * k;
-    st8.current.shake += (shake - st8.current.shake) * k;
-
-    // Group orientation
-    if (groupRef.current) {
-      groupRef.current.rotation.x = 0.18;
-      groupRef.current.rotation.y = reducedMotion ? 0.5 : dragRot;
-    }
-
-    // Vault color & shake
-    if (vaultMeshRef.current) {
-      const mat = vaultMeshRef.current.material as THREE.MeshStandardMaterial;
-      mat.color.set(state === "failed" ? cBad : cAcc);
-      vaultMeshRef.current.position.x = st8.current.shake * Math.sin(t * 50) * 0.06;
-    }
-
-    // Core pulsing & emissive color
-    if (coreRef.current) {
-      const mat = coreRef.current.material as THREE.MeshStandardMaterial;
-      coreRef.current.rotation.y = t;
-      mat.emissive.set(
-        state === "failed"
-          ? cBad
-          : state === "verifying"
-          ? cBlue
-          : state === "anchored"
-          ? cWarn
-          : 0xf7f1e3
-      );
-      if (!reducedMotion) {
-        const s = 1 + 0.08 * Math.sin(t * 3);
-        coreRef.current.scale.set(s, s, s);
-      }
-    }
-
-    // Outer ring color
-    if (ringRef.current) {
-      const mat = ringRef.current.material as THREE.MeshBasicMaterial;
-      mat.color.copy(state === "failed" ? cBad : cInk);
-    }
-
-    // Documents orbit & contraction
-    docsRef.current.forEach((d, i) => {
-      if (!d) return;
-      const baseAngle = (i / 7) * Math.PI * 2;
-      const a = baseAngle + t * (reducedMotion ? 0 : 0.35);
-      const r = st8.current.rad;
-      d.position.set(
-        Math.cos(a) * r,
-        Math.sin(t * 0.8 + i) * 0.35 + (i % 2 ? 0.9 : -0.9),
-        Math.sin(a) * r
-      );
-      d.lookAt(0, d.position.y, 0);
-
-      const mat = d.material as THREE.MeshStandardMaterial;
-      mat.color.copy(cPaper.clone().lerp(cOk, st8.current.lock * 0.75));
-      const s = 1 - st8.current.lock * 0.35;
-      d.scale.set(s, s, s);
-    });
-
-    // Scan ring sweeping
-    if (scanRef.current) {
-      const mat = scanRef.current.material as THREE.MeshBasicMaterial;
-      mat.opacity = st8.current.scan * 0.9;
-      scanRef.current.position.y = Math.sin(t * 2.2) * 1.5 * st8.current.scan;
-    }
-
-    // Nodes (Participants)
-    nodesRef.current.forEach((n) => {
-      if (!n) return;
-      const mat = n.material as THREE.MeshStandardMaterial;
-      mat.color.set(state === "failed" ? cBad : cBlue);
-    });
-
-    // Lines
-    linesRef.current.forEach((l) => {
-      if (!l) return;
-      const mat = l.material as THREE.LineBasicMaterial;
-      mat.color.copy(lineCol);
-    });
-
-    // Pulses
-    pulsesRef.current.forEach((p, i) => {
-      if (!p) return;
-      const on = state === "verifying" || state === "anchored" || state === "encrypting";
-      p.visible = on && !reducedMotion;
-      if (on && !reducedMotion) {
-        const s = i % 2 ? 1 : -1;
-        const u = (t * 0.5 + i * 0.25) % 1;
-        p.position.set(s * 5.2 * (state === "encrypting" ? 1 - u : u), 0.4 * (1 - u), 0);
-        const mat = p.material as THREE.MeshBasicMaterial;
-        mat.color.set(state === "encrypting" ? cOk : state === "anchored" ? cWarn : cBlue);
-      }
-    });
-
-    // Anchored receipt block
-    if (blockRef.current) {
-      const blkScale = Math.max(0.001, st8.current.blk);
-      blockRef.current.scale.set(blkScale, blkScale, blkScale);
-      blockRef.current.rotation.y = t * 0.8;
-      blockRef.current.position.y = 3.2 + Math.sin(t * 2) * 0.08;
-    }
-  });
-
-  return (
-    <group ref={groupRef}>
-      {/* Central Vault */}
-      <mesh ref={vaultMeshRef} geometry={vaultGeo}>
-        <meshStandardMaterial
-          color={0x0f5c47}
-          roughness={0.35}
-          metalness={0.25}
-          transparent
-          opacity={0.92}
-        />
-      </mesh>
-
-      {/* Outer Wireframe Edges */}
-      <primitive
-        object={
-          new THREE.LineSegments(
-            edgesGeo,
-            new THREE.LineBasicMaterial({ color: 0x16211c })
-          )
-        }
-      />
-
-      {/* Core Glowing Icosahedron */}
-      <mesh ref={coreRef} geometry={coreGeo}>
-        <meshStandardMaterial
-          color={0xf7f1e3}
-          emissive={0xf7f1e3}
-          emissiveIntensity={0.5}
-          roughness={0.4}
-        />
-      </mesh>
-
-      {/* Orbit Ring */}
-      <mesh ref={ringRef} geometry={ringGeo} rotation={[Math.PI / 2, 0, 0]}>
-        <meshBasicMaterial color={0x16211c} />
-      </mesh>
-
-      {/* Scan Ring */}
-      <mesh ref={scanRef} geometry={scanGeo} rotation={[Math.PI / 2, 0, 0]}>
-        <meshBasicMaterial color={0x3e63d9} transparent opacity={0} />
-      </mesh>
-
-      {/* 7 Orbiting Document Sheets */}
-      {Array.from({ length: 7 }).map((_, i) => (
-        <mesh
-          key={i}
-          ref={(el) => {
-            if (el) docsRef.current[i] = el;
-          }}
-          geometry={docGeo}
-        >
-          <meshStandardMaterial color={0xfffcf4} roughness={0.6} />
-        </mesh>
-      ))}
-
-      {/* Participant Nodes (Left and Right) */}
-      {[-1, 1].map((s, idx) => (
-        <mesh
-          key={idx}
-          ref={(el) => {
-            if (el) nodesRef.current[idx] = el;
-          }}
-          geometry={nodeGeo}
-          position={[s * 5.2, 0.4, 0]}
-        >
-          <meshStandardMaterial color={0x3e63d9} roughness={0.4} />
-        </mesh>
-      ))}
-
-      {/* Connection Lines */}
-      <primitive
-        object={
-          new THREE.Line(
-            leftLineGeo,
-            new THREE.LineBasicMaterial({ color: 0x5e6b63 })
-          )
-        }
-        ref={(el: THREE.Line) => {
-          if (el) linesRef.current[0] = el;
-        }}
-      />
-      <primitive
-        object={
-          new THREE.Line(
-            rightLineGeo,
-            new THREE.LineBasicMaterial({ color: 0x5e6b63 })
-          )
-        }
-        ref={(el: THREE.Line) => {
-          if (el) linesRef.current[1] = el;
-        }}
-      />
-
-      {/* 4 Traveling Pulses */}
-      {Array.from({ length: 4 }).map((_, idx) => (
-        <mesh
-          key={idx}
-          ref={(el) => {
-            if (el) pulsesRef.current[idx] = el;
-          }}
-          geometry={pulseGeo}
-          visible={false}
-        >
-          <meshBasicMaterial color={0x3e63d9} />
-        </mesh>
-      ))}
-
-      {/* Receipt Block (Scales in when anchored) */}
-      <mesh ref={blockRef} geometry={blockGeo} position={[0, 3.2, 0]} scale={0.001}>
-        <meshStandardMaterial color={0xc98a1a} roughness={0.35} metalness={0.3} />
-      </mesh>
-    </group>
-  );
-}
 
 export interface VaultCanvasProps {
   state: VaultState;
   size?: "hero" | "mini" | "inline";
   className?: string;
+  hudHeight?: number;
 }
 
 export default function VaultCanvas({
   state = "idle",
-  size = "hero",
   className = "",
 }: VaultCanvasProps) {
-  const [reducedMotion, setReducedMotion] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [isVisible, setIsVisible] = useState(true);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const stateRef = useRef<string>("idle");
 
-  // Drag and inertia state matching prototype
-  const [rot, setRot] = useState(0);
-  const isDragging = useRef(false);
-  const prevX = useRef(0);
-  const vel = useRef(0);
-  const rotRef = useRef(0);
-
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Synchronize incoming real/preview state to prototype state key
+  useEffect(() => {
+    if (state === "encrypting") stateRef.current = "encrypt";
+    else if (state === "verifying") stateRef.current = "verify";
+    else if (state === "anchored") stateRef.current = "anchor";
+    else if (state === "failed") stateRef.current = "fail";
+    else stateRef.current = "idle";
+  }, [state]);
 
   useEffect(() => {
-    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReducedMotion(motionQuery.matches);
-    const motionHandler = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
-    motionQuery.addEventListener("change", motionHandler);
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const st = cv.parentElement;
+    if (!st) return;
 
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 640);
-    };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
+    let animId: number;
+    const reduce = window.matchMedia("(prefers-reduced-motion:reduce)").matches;
 
-    const handleVisibilityChange = () => {
-      setIsVisible(!document.hidden);
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    // Renderer matching prototype exactly
+    const R = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true });
+    R.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsVisible(entry.isIntersecting && !document.hidden);
-      },
-      { threshold: 0.05 }
-    );
-    if (containerRef.current) {
-      observer.observe(containerRef.current);
+    // Scene & Camera
+    const sc = new THREE.Scene();
+    const cam = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+    cam.position.set(0, 1.2, 11);
+
+    // Lights
+    sc.add(new THREE.AmbientLight(0xffffff, 0.85));
+    const dl = new THREE.DirectionalLight(0xffffff, 0.9);
+    dl.position.set(4, 6, 5);
+    sc.add(dl);
+
+    // CSS variables sync matching prototype
+    function css(v: string) {
+      if (typeof window === "undefined") return new THREE.Color("#0F5C47");
+      return new THREE.Color(
+        getComputedStyle(document.documentElement).getPropertyValue(v).trim() || "#0F5C47"
+      );
     }
 
-    // Animation frame for inertia and idle auto-rotation
-    let animId: number;
-    let lastTime = performance.now();
+    let cMuted = new THREE.Color(0x5e6b63);
+    let cAcc = new THREE.Color(0x0f5c47);
+    let cInk = new THREE.Color(0x16211c);
+    const cBad = new THREE.Color("#B63A3A");
+    const cWarn = new THREE.Color("#C98A1A");
+    const cOk = new THREE.Color("#0F7A52");
+    let cPaper = new THREE.Color("#FFFCF4");
 
-    const inertiaLoop = () => {
-      const now = performance.now();
-      const dt = Math.min((now - lastTime) * 0.001, 0.05);
-      lastTime = now;
+    function sync() {
+      setTimeout(() => {
+        cAcc = css("--accent");
+        cInk = css("--ink");
+        cPaper = css("--solid");
+        cMuted = css("--muted");
+      }, 30);
+    }
+    sync();
 
-      if (!reducedMotion && !isDragging.current) {
-        rotRef.current += vel.current;
-        vel.current *= 0.94;
-        rotRef.current += dt * 0.18;
-        setRot(rotRef.current);
+    const darkModeQuery = window.matchMedia("(prefers-color-scheme:dark)");
+    const onThemeChange = () => sync();
+    if (darkModeQuery.addEventListener) {
+      darkModeQuery.addEventListener("change", onThemeChange);
+    }
+
+    // Geometries & meshes matching prototype 1:1
+    const G = new THREE.Group();
+    sc.add(G);
+
+    const vault = new THREE.Mesh(
+      new THREE.BoxGeometry(2.2, 2.2, 2.2),
+      new THREE.MeshStandardMaterial({
+        color: 0x0f5c47,
+        roughness: 0.35,
+        metalness: 0.25,
+        transparent: true,
+        opacity: 0.92,
+      })
+    );
+    G.add(vault);
+
+    const edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(2.6, 2.6, 2.6)),
+      new THREE.LineBasicMaterial({ color: 0x16211c })
+    );
+    G.add(edges);
+
+    const core = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.55, 1),
+      new THREE.MeshStandardMaterial({
+        color: 0xf7f1e3,
+        emissive: 0xf7f1e3,
+        emissiveIntensity: 0.5,
+        roughness: 0.4,
+      })
+    );
+    G.add(core);
+
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(3.7, 0.025, 8, 160),
+      new THREE.MeshBasicMaterial({ color: 0x16211c })
+    );
+    ring.rotation.x = Math.PI / 2;
+    G.add(ring);
+
+    const scan = new THREE.Mesh(
+      new THREE.TorusGeometry(2.1, 0.05, 8, 96),
+      new THREE.MeshBasicMaterial({ color: 0x3e63d9, transparent: true, opacity: 0 })
+    );
+    scan.rotation.x = Math.PI / 2;
+    G.add(scan);
+
+    const docs: THREE.Mesh[] = [];
+    const docGeo = new THREE.BoxGeometry(0.95, 1.25, 0.06);
+    for (let i = 0; i < 7; i++) {
+      const m = new THREE.Mesh(
+        docGeo,
+        new THREE.MeshStandardMaterial({ color: 0xfffcf4, roughness: 0.6 })
+      );
+      m.userData.a = (i / 7) * Math.PI * 2;
+      G.add(m);
+      docs.push(m);
+    }
+
+    const nodes = [-1, 1].map((s) => {
+      const n = new THREE.Mesh(
+        new THREE.SphereGeometry(0.38, 24, 24),
+        new THREE.MeshStandardMaterial({ color: 0x3e63d9, roughness: 0.4 })
+      );
+      n.position.set(s * 5.2, 0.4, 0);
+      G.add(n);
+      return n;
+    });
+
+    const lines = nodes.map((n) => {
+      const g = new THREE.BufferGeometry().setFromPoints([
+        n.position.clone(),
+        new THREE.Vector3(0, 0, 0),
+      ]);
+      const l = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x5e6b63 }));
+      G.add(l);
+      return l;
+    });
+
+    const pulses = [0, 1, 2, 3].map(() => {
+      const p = new THREE.Mesh(
+        new THREE.SphereGeometry(0.09, 12, 12),
+        new THREE.MeshBasicMaterial({ color: 0x3e63d9 })
+      );
+      p.visible = false;
+      G.add(p);
+      return p;
+    });
+
+    const block = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 0.55, 1),
+      new THREE.MeshStandardMaterial({ color: 0xc98a1a, roughness: 0.35, metalness: 0.3 })
+    );
+    block.position.set(0, 3.2, 0);
+    block.scale.setScalar(0.001);
+    G.add(block);
+
+    const st8 = { rad: 4.2, lock: 0, scan: 0, blk: 0, shake: 0 };
+
+    // Interaction exactly matching prototype
+    let drag = false;
+    let px = 0;
+    let rot = 0;
+    let vel = 0;
+
+    const onPointerDown = (e: PointerEvent) => {
+      drag = true;
+      px = e.clientX;
+    };
+    const onPointerUp = () => {
+      drag = false;
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (drag) {
+        const d = e.clientX - px;
+        px = e.clientX;
+        rot += d * 0.01;
+        vel = d * 0.01;
+      }
+    };
+
+    cv.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+    window.addEventListener("pointermove", onPointerMove);
+
+    // Responsive sizing exactly matching prototype
+    function size() {
+      if (!st) return;
+      const w = st.clientWidth;
+      const h = st.clientHeight;
+      R.setSize(w, h, false);
+      cam.aspect = w / h;
+      cam.position.z = w < 600 ? 15 : 11;
+      cam.updateProjectionMatrix();
+    }
+
+    const resizeObserver = new ResizeObserver(() => size());
+    resizeObserver.observe(st);
+    window.addEventListener("resize", size);
+    size();
+
+    function L(a: number, b: number, k: number) {
+      return a + (b - a) * k;
+    }
+
+    const clock = new THREE.Clock();
+
+    // Exact animation frame loop from prototype
+    function frame() {
+      const dt = Math.min(clock.getDelta(), 0.05);
+      const t = clock.elapsedTime;
+      const k = 1 - Math.pow(0.001, dt);
+
+      const cur = stateRef.current;
+      let tgtRad = 4.2;
+      let tgtLock = 0;
+      let tgtScan = 0;
+      let tgtBlk = 0;
+      let shake = 0;
+      let line = cMuted || new THREE.Color(0x5e6b63);
+
+      if (cur === "encrypt") {
+        tgtRad = 1.9;
+        tgtLock = 1;
+      }
+      if (cur === "verify") {
+        tgtRad = 3.6;
+        tgtScan = 1;
+        line = new THREE.Color(0x3e63d9);
+      }
+      if (cur === "anchor") {
+        tgtRad = 3.8;
+        tgtBlk = 1;
+        line = cOk;
+      }
+      if (cur === "fail") {
+        tgtRad = 5.2;
+        shake = 1;
+        line = cBad;
       }
 
-      animId = requestAnimationFrame(inertiaLoop);
-    };
-    animId = requestAnimationFrame(inertiaLoop);
+      st8.rad = L(st8.rad, tgtRad, k);
+      st8.lock = L(st8.lock, tgtLock, k);
+      st8.scan = L(st8.scan, tgtScan, k);
+      st8.blk = L(st8.blk, tgtBlk, k);
+      st8.shake = L(st8.shake, shake, k);
+
+      if (!reduce && !drag) {
+        rot += vel;
+        vel *= 0.94;
+        rot += dt * 0.18;
+      }
+
+      G.rotation.y = reduce ? 0.5 : rot;
+      G.rotation.x = 0.18;
+
+      vault.material.color.set(
+        cur === "fail"
+          ? cBad
+          : cAcc && cAcc.getHSL({ h: 0, s: 0, l: 0 }).l > 0.5
+          ? new THREE.Color(0x0f5c47)
+          : new THREE.Color(0x0f5c47)
+      );
+      vault.position.x = st8.shake * Math.sin(t * 50) * 0.06;
+
+      core.rotation.y = t;
+      core.material.emissive.set(
+        cur === "fail"
+          ? cBad
+          : cur === "verify"
+          ? new THREE.Color(0x3e63d9)
+          : cur === "anchor"
+          ? cWarn
+          : 0xf7f1e3
+      );
+      core.scale.setScalar(1 + 0.08 * Math.sin(t * 3));
+
+      edges.material.color.copy(cInk || new THREE.Color(0x16211c));
+      ring.material.color.copy(cur === "fail" ? cBad : cInk || new THREE.Color(0x16211c));
+
+      docs.forEach((d, i) => {
+        const a = (d.userData.a as number) + t * (reduce ? 0 : 0.35);
+        const r = st8.rad;
+        d.position.set(
+          Math.cos(a) * r,
+          Math.sin(t * 0.8 + i) * 0.35 + (i % 2 ? 0.9 : -0.9),
+          Math.sin(a) * r
+        );
+        d.lookAt(0, d.position.y, 0);
+        (d.material as THREE.MeshStandardMaterial).color.copy(
+          (cPaper || new THREE.Color(0xfffcf4)).clone().lerp(new THREE.Color(0x0f7a52), st8.lock * 0.75)
+        );
+        d.scale.setScalar(1 - st8.lock * 0.35);
+      });
+
+      scan.material.opacity = st8.scan * 0.9;
+      scan.position.y = Math.sin(t * 2.2) * 1.5 * st8.scan;
+
+      nodes.forEach((n) => {
+        (n.material as THREE.MeshStandardMaterial).color.set(cur === "fail" ? cBad : 0x3e63d9);
+      });
+      lines.forEach((l) => {
+        (l.material as THREE.LineBasicMaterial).color.copy(line);
+      });
+
+      pulses.forEach((p, i) => {
+        const on = cur === "verify" || cur === "anchor" || cur === "encrypt";
+        p.visible = on;
+        if (on) {
+          const s = i % 2 ? 1 : -1;
+          const u = (t * 0.5 + i * 0.25) % 1;
+          p.position.set(s * 5.2 * (cur === "encrypt" ? 1 - u : u), 0.4 * (1 - u), 0);
+          (p.material as THREE.MeshBasicMaterial).color.set(
+            cur === "encrypt" ? 0x0f7a52 : cur === "anchor" ? 0xc98a1a : 0x3e63d9
+          );
+        }
+      });
+
+      block.scale.setScalar(Math.max(0.001, st8.blk));
+      block.rotation.y = t * 0.8;
+      block.position.y = 3.2 + Math.sin(t * 2) * 0.08;
+
+      R.render(sc, cam);
+      animId = requestAnimationFrame(frame);
+    }
+
+    frame();
 
     return () => {
-      motionQuery.removeEventListener("change", motionHandler);
-      window.removeEventListener("resize", checkMobile);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      observer.disconnect();
       cancelAnimationFrame(animId);
+      cv.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("resize", size);
+      resizeObserver.disconnect();
+      if (darkModeQuery.removeEventListener) {
+        darkModeQuery.removeEventListener("change", onThemeChange);
+      }
+      R.dispose();
+      R.forceContextLoss();
     };
-  }, [reducedMotion]);
-
-  // Pointer drag event handlers matching prototype
-  const onPointerDown = (e: React.PointerEvent) => {
-    isDragging.current = true;
-    prevX.current = e.clientX;
-  };
-
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!isDragging.current) return;
-    const deltaX = e.clientX - prevX.current;
-    prevX.current = e.clientX;
-    rotRef.current += deltaX * 0.01;
-    vel.current = deltaX * 0.01;
-    setRot(rotRef.current);
-  };
-
-  const onPointerUp = () => {
-    isDragging.current = false;
-  };
-
-  const sizeClasses = {
-    hero: "w-full h-[480px] sm:h-[520px]",
-    mini: "w-24 h-24",
-    inline: "w-16 h-16",
-  };
-
-  const cameraDistance = isMobile ? 15 : size === "mini" ? 12 : size === "inline" ? 12 : 11;
+  }, []);
 
   return (
-    <div
-      ref={containerRef}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-      className={`relative select-none cursor-grab active:cursor-grabbing touch-none ${sizeClasses[size]} ${className}`}
-      role="region"
+    <canvas
+      id="c"
+      ref={canvasRef}
       aria-label="Interactive 3D model of a private room that reacts to encryption, verification and receipt steps"
-    >
-      {isVisible && (
-        <Canvas
-          camera={{ position: [0, 1.2, cameraDistance], fov: 38 }}
-          dpr={[1, 2]}
-          gl={{
-            powerPreference: "high-performance",
-            antialias: true,
-            alpha: true,
-          }}
-        >
-          <ambientLight intensity={0.85} color="#ffffff" />
-          <directionalLight position={[4, 6, 5]} intensity={0.9} color="#ffffff" />
-
-          <VaultModel
-            state={state}
-            reducedMotion={reducedMotion}
-            isMobile={isMobile}
-            dragRot={rot}
-          />
-        </Canvas>
-      )}
-
-      {/* Screen-reader status announcement */}
-      <span className="sr-only" aria-live="polite">
-        Vault status: {state}
-      </span>
-    </div>
+      role="img"
+      className={className}
+    />
   );
 }

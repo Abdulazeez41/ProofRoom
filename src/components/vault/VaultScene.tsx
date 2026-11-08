@@ -45,6 +45,7 @@ export interface VaultSceneProps {
   state: VaultState;
   size?: "hero" | "mini" | "inline";
   className?: string;
+  hudHeight?: number;
 }
 
 export function VaultScene({

@@ -78,110 +78,71 @@ export function VaultHeroHud() {
   const current = stateDetails[previewState];
 
   return (
-    <div
-      id="stage"
-      className="relative w-full rounded-[28px] overflow-hidden min-h-[500px] sm:min-h-[520px] border border-line"
-      style={{
-        background: "radial-gradient(120% 90% at 50% 20%, var(--solid), var(--bg2))",
-      }}
-    >
-      {/* 3D Scene */}
+    <div className="stage" id="stage">
+      {/* 3D Canvas */}
       <VaultScene state={previewState} size="hero" />
 
       {/* Note Badge top-left */}
-      <span className="absolute top-3 left-3 text-xs py-1.5 px-3 rounded-full glass text-muted z-10 pointer-events-none select-none">
-        Preview animation · drag to rotate
-      </span>
+      <span className="note glass">Preview animation · drag to rotate</span>
 
       {/* HUD Glass Overlay at bottom */}
-      <div
-        className="absolute left-3 right-3 bottom-3 rounded-[20px] p-3.5 sm:p-4 glass z-10 select-none"
-        aria-live="polite"
-      >
-        <div className="flex items-center gap-2.5 font-semibold text-sm text-ink mb-1">
-          <span
-            className="w-2.5 h-2.5 rounded-full shrink-0 transition-colors"
-            style={{ background: current.dot }}
-            aria-hidden="true"
-          />
-          <span>{current.label}</span>
-          <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-line text-muted ml-auto">
-            {current.tag}
-          </span>
+      <div className="hud glass" aria-live="polite">
+        <div className="status">
+          <span className="dot" id="dot" style={{ background: current.dot }} />
+          <span id="sl">{current.label}</span>
+          <span className="tag" id="tg">{current.tag}</span>
         </div>
 
-        <p className="text-xs sm:text-sm text-muted m-0 mb-3 leading-normal">
-          {current.desc}
-        </p>
+        <p id="sd">{current.desc}</p>
 
         {/* Step Control Buttons */}
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Preview steps">
+        <div className="ctrl" role="group" aria-label="Preview steps">
           <button
             type="button"
+            className="btn"
             data-s="encrypt"
             aria-pressed={previewState === "encrypting"}
             onClick={() => setStep("encrypting")}
-            className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all min-h-[40px] ${
-              previewState === "encrypting"
-                ? "bg-accent text-accent-ink border-transparent shadow-sm"
-                : "bg-solid text-ink border-line hover:border-accent"
-            }`}
           >
             1 Lock files
           </button>
 
           <button
             type="button"
+            className="btn"
             data-s="verify"
             aria-pressed={previewState === "verifying"}
             onClick={() => setStep("verifying")}
-            className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all min-h-[40px] ${
-              previewState === "verifying"
-                ? "bg-accent text-accent-ink border-transparent shadow-sm"
-                : "bg-solid text-ink border-line hover:border-accent"
-            }`}
           >
             2 Check AI
           </button>
 
           <button
             type="button"
+            className="btn"
             data-s="anchor"
             aria-pressed={previewState === "anchored"}
             onClick={() => setStep("anchored")}
-            className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all min-h-[40px] ${
-              previewState === "anchored"
-                ? "bg-accent text-accent-ink border-transparent shadow-sm"
-                : "bg-solid text-ink border-line hover:border-accent"
-            }`}
           >
             3 Save receipt
           </button>
 
           <button
             type="button"
+            className="btn"
             data-s="fail"
             aria-pressed={previewState === "failed"}
             onClick={() => setStep("failed")}
-            className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all min-h-[40px] ${
-              previewState === "failed"
-                ? "bg-bad text-solid border-transparent shadow-sm"
-                : "bg-solid text-ink border-line hover:border-bad"
-            }`}
           >
             Test a failure
           </button>
 
           <button
             type="button"
+            className="btn primary"
             id="play"
             aria-pressed={isPlayingAll}
             onClick={handlePlayAll}
-            className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all min-h-[40px] ml-auto ${
-              isPlayingAll
-                ? "bg-accent text-accent-ink border-transparent"
-                : "bg-accent text-accent-ink hover:opacity-90"
-            }`}
           >
             {isPlayingAll ? "Playing..." : "Play all"}
           </button>

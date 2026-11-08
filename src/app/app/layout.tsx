@@ -10,7 +10,7 @@ export default function AppLayout({
   return (
     <div className="flex-1 flex w-full min-h-[calc(100vh-4rem)]">
       <AppSidebar />
-      <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full pb-20 lg:pb-8">
+      <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 xl:p-10 w-full pb-20 lg:pb-8">
         {children}
       </main>
       <MobileBottomNav />

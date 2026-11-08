@@ -35,10 +35,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="min-h-screen flex flex-col bg-background text-foreground antialiased">
+      <body className="min-h-screen min-h-[100dvh] flex flex-col bg-background text-foreground antialiased overflow-x-hidden w-full max-w-full">
         <WalletProvider>
           <Navbar />
-          <main className="flex-1 flex flex-col">{children}</main>
+          <div className="flex-1 flex flex-col w-full">{children}</div>
         </WalletProvider>
       </body>
     </html>
