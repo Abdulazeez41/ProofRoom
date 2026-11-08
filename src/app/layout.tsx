@@ -1,7 +1,17 @@
 import "./globals.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { WalletProvider } from "@/context/WalletContext";
 import { Navbar } from "@/components/layout/Navbar";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#F7F1E3" },
+    { media: "(prefers-color-scheme: dark)", color: "#12170F" },
+  ],
+};
 
 export const metadata: Metadata = {
   title: "ProofRoom — Private intelligence. Verifiable trust.",
