@@ -1,0 +1,118 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                   String                 @id @default(uuid())
+  nearAccountId        String                 @unique
+  encryptionPublicKey  String?
+  encryptionKeyVersion Int                    @default(1)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  ownedRooms           Room[]                 @relation("RoomOwner")
+  participations       RoomParticipant[]
+  keyEnvelopes         DocumentKeyEnvelope[]
+}
+
+model WalletChallenge {
+  id            String    @id @default(uuid())
+  nearAccountId String
+  nonce         String    @unique
+  recipient     String
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([nearAccountId, nonce])
+}
+
+model Room {
+  id                 String            @id @default(uuid())
+  opaqueRoomId       String            @unique
+  ownerUserId        String
+  name               String
+  companyName        String
+  description        String?
+  purpose            String            @default("Fundraising")
+  status             String            @default("active")
+  roomCommitment     String
+  metadataCommitment String
+  expiresAt          DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  owner              User              @relation("RoomOwner", fields: [ownerUserId], references: [id])
+  participants       RoomParticipant[]
+  documents          Document[]
+  auditReceipts      AuditReceipt[]
+}
+
+model RoomParticipant {
+  id                   String    @id @default(uuid())
+  roomId               String
+  participantUserId    String?
+  participantNearAccount String
+  permissionStatus     String    @default("INVITED") // INVITED, ACTIVE, REVOKED, EXPIRED
+  permissionCommitment String
+  expiresAt            DateTime?
+  invitedAt            DateTime  @default(now())
+  revokedAt            DateTime?
+
+  room                 Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user                 User?     @relation(fields: [participantUserId], references: [id])
+
+  @@unique([roomId, participantNearAccount])
+}
+
+model Document {
+  id                   String                @id @default(uuid())
+  roomId               String
+  opaqueDocumentId     String                @unique
+  name                 String
+  category             String                @default("Financials")
+  encryptedStorageKey  String
+  encryptedSize        Int
+  mimeType             String                @default("application/pdf")
+  ciphertextHash       String
+  version              Int                   @default(1)
+  encryptionAlgorithm  String                @default("AES-256-GCM")
+  createdAt            DateTime              @default(now())
+
+  room                 Room                  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  keyEnvelopes         DocumentKeyEnvelope[]
+}
+
+model DocumentKeyEnvelope {
+  id                   String    @id @default(uuid())
+  documentId           String
+  recipientUserId      String
+  encryptedKeyEnvelope String    // JSON containing ephemeralPubKey, iv, ciphertext, tag
+  recipientKeyVersion  Int       @default(1)
+  createdAt            DateTime  @default(now())
+  revokedAt            DateTime?
+
+  document             Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  recipient            User      @relation(fields: [recipientUserId], references: [id])
+}
+
+model AuditReceipt {
+  id                 String    @id @default(uuid())
+  roomId             String
+  opaqueReceiptId    String    @unique
+  receiptHash        String
+  eventType          String    // AI_INFERENCE_VERIFIED, DOCUMENT_COMMITTED, ACCESS_GRANTED, ACCESS_REVOKED
+  verificationStatus String    // VERIFIED, FAILED, PENDING
+  modelId            String?
+  requestHash        String?
+  responseHash       String?
+  transactionHash    String?
+  createdAt          DateTime  @default(now())
+
+  room               Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}

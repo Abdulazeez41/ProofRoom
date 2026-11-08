@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Next.js build
+.next/
+out/
+build/
+dist/
+
+# Rust cargo
+contracts/proofroom/target/
+Cargo.lock
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Databases & local storage
+*.db
+*.db-journal
+prisma/*.db
+prisma/*.db-journal
+data/encrypted_blobs/*.enc
+
+# Logs & temp
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+.tmp_test/
+.tmp_seed/
+
+# OS files
+.DS_Store
+Thumbs.db
