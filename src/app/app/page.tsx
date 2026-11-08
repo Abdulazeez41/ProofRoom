@@ -16,9 +16,12 @@ import {
   Database,
   ExternalLink,
   ChevronRight,
+  Activity,
+  FileLock2,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { SecurityBadge } from "@/components/ui/Badge";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { useWallet } from "@/context/WalletContext";
 import { getExplorerTxUrl } from "@/lib/near/config";
 
@@ -87,27 +90,27 @@ export default function DashboardPage() {
   const totalReceipts = rooms.reduce((acc, r) => acc + (r._count?.auditReceipts || 0), 0);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-200">
+    <div className="space-y-8 animate-in fade-in duration-150">
       {/* Top Welcome Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-ink">
             Your confidential workspace
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Manage your rooms, collaborators and secure document activity.
+          <p className="text-xs sm:text-sm text-muted mt-1">
+            Manage your rooms, collaborators, and verified document activities.
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <Button
             size="sm"
             variant="glass"
             loading={seedingDemo}
             onClick={handleSeedDemo}
-            icon={<Sparkles className="w-3.5 h-3.5 text-primary" />}
+            icon={<Sparkles className="w-3.5 h-3.5 text-accent" />}
           >
-            Seed Northstar Demo
+            Seed Northstar demo
           </Button>
 
           <Link href="/app/rooms/new">
@@ -119,123 +122,120 @@ export default function DashboardPage() {
       </div>
 
       {/* Top 4 Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-5 rounded-3xl glass-panel-elevated border border-border space-y-2">
-          <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
-            <span>Active Rooms</span>
-            <FolderLock className="w-4 h-4 text-primary" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <GlassCard radius="2xl" className="p-5 border-line space-y-2">
+          <div className="flex items-center justify-between text-muted text-xs font-medium">
+            <span>Active rooms</span>
+            <FolderLock className="w-4 h-4 text-accent" aria-hidden="true" />
           </div>
-          <div className="text-2xl sm:text-3xl font-bold text-foreground font-mono">{totalRooms}</div>
-          <span className="text-[11px] text-muted-foreground">Opaque on-chain commitments</span>
-        </div>
+          <div className="text-2xl sm:text-3xl font-bold text-ink font-mono">{totalRooms}</div>
+          <span className="text-[11px] text-muted block">Opaque commitments</span>
+        </GlassCard>
 
-        <div className="p-5 rounded-3xl glass-panel-elevated border border-border space-y-2">
-          <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
-            <span>Documents Secured</span>
-            <FileText className="w-4 h-4 text-emerald-500" />
+        <GlassCard radius="2xl" className="p-5 border-line space-y-2">
+          <div className="flex items-center justify-between text-muted text-xs font-medium">
+            <span>Documents secured</span>
+            <FileText className="w-4 h-4 text-ok" aria-hidden="true" />
           </div>
-          <div className="text-2xl sm:text-3xl font-bold text-foreground font-mono">{totalDocs}</div>
-          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-            AES-256-GCM Encrypted
-          </span>
-        </div>
+          <div className="text-2xl sm:text-3xl font-bold text-ink font-mono">{totalDocs}</div>
+          <span className="text-[11px] text-ok font-medium block">AES-256-GCM in browser</span>
+        </GlassCard>
 
-        <div className="p-5 rounded-3xl glass-panel-elevated border border-border space-y-2">
-          <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
-            <span>Authorized Participants</span>
-            <Users className="w-4 h-4 text-secondary" />
+        <GlassCard radius="2xl" className="p-5 border-line space-y-2">
+          <div className="flex items-center justify-between text-muted text-xs font-medium">
+            <span>Authorized participants</span>
+            <Users className="w-4 h-4 text-info" aria-hidden="true" />
           </div>
-          <div className="text-2xl sm:text-3xl font-bold text-foreground font-mono">{totalParticipants}</div>
-          <span className="text-[11px] text-muted-foreground">X25519 Key Envelopes</span>
-        </div>
+          <div className="text-2xl sm:text-3xl font-bold text-ink font-mono">{totalParticipants}</div>
+          <span className="text-[11px] text-muted block">X25519 key envelopes</span>
+        </GlassCard>
 
-        <div className="p-5 rounded-3xl glass-panel-elevated border border-border space-y-2">
-          <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
-            <span>Verified AI Queries</span>
-            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+        <GlassCard radius="2xl" className="p-5 border-line space-y-2">
+          <div className="flex items-center justify-between text-muted text-xs font-medium">
+            <span>Verified AI receipts</span>
+            <ShieldCheck className="w-4 h-4 text-ok" aria-hidden="true" />
           </div>
-          <div className="text-2xl sm:text-3xl font-bold text-foreground font-mono">{totalReceipts}</div>
-          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-            Intel TDX Signed
-          </span>
-        </div>
+          <div className="text-2xl sm:text-3xl font-bold text-ink font-mono">{totalReceipts}</div>
+          <span className="text-[11px] text-ok font-medium block">Intel TDX verified</span>
+        </GlassCard>
       </div>
 
-      {/* Main Grid: Recent Rooms & Security Center Summary */}
+      {/* Main Grid: Recent Rooms & Security Center Snapshot */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Recent Rooms */}
         <div className="lg:col-span-8 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-              <FolderLock className="w-4 h-4 text-primary" />
-              Confidential Rooms
+            <h2 className="text-base font-semibold text-ink flex items-center gap-2">
+              <FolderLock className="w-4 h-4 text-accent" aria-hidden="true" />
+              <span>Confidential rooms</span>
             </h2>
-            <Link href="/app/rooms" className="text-xs text-primary hover:underline font-medium">
+            <Link href="/app/rooms" className="text-xs text-accent hover:underline font-medium">
               View all
             </Link>
           </div>
 
           {loading ? (
-            <div className="p-12 text-center rounded-3xl glass-panel text-xs text-muted-foreground space-y-2">
-              <RefreshCw className="w-5 h-5 animate-spin mx-auto text-primary" />
+            <div className="p-12 text-center rounded-2xl glass text-xs text-muted space-y-2">
+              <RefreshCw className="w-5 h-5 animate-spin mx-auto text-accent" aria-hidden="true" />
               <p>Loading confidential rooms...</p>
             </div>
           ) : rooms.length === 0 ? (
-            <div className="p-8 text-center rounded-3xl glass-panel border border-border space-y-4">
-              <FolderLock className="w-10 h-10 text-muted-foreground/40 mx-auto" />
+            <GlassCard radius="2xl" className="p-8 text-center border-line space-y-4">
+              <FolderLock className="w-10 h-10 text-muted/50 mx-auto" aria-hidden="true" />
               <div className="space-y-1">
-                <h3 className="font-semibold text-foreground text-sm">No rooms found</h3>
-                <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                  Click &quot;Seed Northstar Demo&quot; to test with pre-seeded synthetic fundraising documents, or create a new confidential room.
+                <h3 className="font-semibold text-ink text-sm">No rooms found</h3>
+                <p className="text-xs text-muted max-w-sm mx-auto">
+                  Click &ldquo;Seed Northstar demo&rdquo; to test with pre-seeded synthetic fundraising
+                  documents, or create a brand new confidential room.
                 </p>
               </div>
-              <div className="flex items-center justify-center gap-3">
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                 <Button size="sm" variant="primary" loading={seedingDemo} onClick={handleSeedDemo}>
-                  Seed Northstar Demo
+                  Seed Northstar demo
                 </Button>
                 <Link href="/app/rooms/new">
-                  <Button size="sm" variant="glass">
-                    Create New Room
+                  <Button size="sm" variant="outline">
+                    Create new room
                   </Button>
                 </Link>
               </div>
-            </div>
+            </GlassCard>
           ) : (
             <div className="space-y-3">
               {rooms.map((room) => (
                 <Link
                   key={room.id}
                   href={`/app/rooms/${room.id}`}
-                  className="block p-5 rounded-3xl glass-panel-elevated border border-border hover:border-primary/40 transition-all duration-200 group"
+                  className="block p-5 rounded-2xl glass border border-line hover:border-accent/40 transition-all duration-150 group"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors text-base">
+                        <h3 className="font-semibold text-ink group-hover:text-accent transition-colors text-base">
                           {room.name}
                         </h3>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-foreground/5 text-muted-foreground border border-border/50">
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-line/20 text-muted">
                           {room.purpose}
                         </span>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Company: <strong className="text-foreground">{room.companyName}</strong> • Owner:{" "}
-                        <span className="font-mono text-primary">{room.owner.nearAccountId}</span>
+                      <p className="text-xs text-muted">
+                        Company: <strong className="text-ink">{room.companyName}</strong> · Owner:{" "}
+                        <span className="font-mono text-accent">{room.owner.nearAccountId}</span>
                       </p>
                     </div>
 
                     <div className="flex items-center gap-3 shrink-0">
                       <div className="text-right text-xs">
-                        <span className="font-medium text-foreground block">
-                          {room._count.documents} Docs • {room._count.participants} Members
+                        <span className="font-medium text-ink block">
+                          {room._count.documents} docs · {room._count.participants} members
                         </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {room._count.auditReceipts} Verifications
+                        <span className="text-[10px] text-muted">
+                          {room._count.auditReceipts} receipts
                         </span>
                       </div>
 
-                      <div className="w-8 h-8 rounded-full bg-foreground/5 group-hover:bg-primary group-hover:text-primary-foreground flex items-center justify-center transition-colors">
-                        <ChevronRight className="w-4 h-4" />
+                      <div className="w-8 h-8 rounded-full bg-line/20 group-hover:bg-accent group-hover:text-accent-ink flex items-center justify-center transition-colors">
+                        <ChevronRight className="w-4 h-4" aria-hidden="true" />
                       </div>
                     </div>
                   </div>
@@ -248,57 +248,60 @@ export default function DashboardPage() {
         {/* Right Column: Security Center Snapshot & Quick Actions */}
         <div className="lg:col-span-4 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-500" />
-              Security Center
+            <h2 className="text-base font-semibold text-ink flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-ok" aria-hidden="true" />
+              <span>Security status</span>
             </h2>
-            <Link href="/app/security" className="text-xs text-primary hover:underline font-medium">
-              Inspect details
+            <Link href="/app/security" className="text-xs text-accent hover:underline font-medium">
+              Details
             </Link>
           </div>
 
-          <div className="p-5 rounded-3xl glass-panel-elevated border border-border space-y-4 text-xs">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-foreground">Hardware Attestation</span>
-                <SecurityBadge status="VERIFIED" />
+          <GlassCard radius="2xl" className="p-5 border-line space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-start justify-between text-xs pb-3 border-b border-line">
+                <div>
+                  <span className="font-medium text-ink block">Intel TDX enclave</span>
+                  <span className="text-[11px] text-muted">DeepSeek-V3.1 on NEAR AI Cloud</span>
+                </div>
+                <SecurityBadge status="VERIFIED" label="Active" />
               </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Intel TDX quote verified. ReportData binds model public signing key with fresh nonce.
-              </p>
+
+              <div className="flex items-start justify-between text-xs pb-3 border-b border-line">
+                <div>
+                  <span className="font-medium text-ink block">Client encryption</span>
+                  <span className="text-[11px] text-muted">AES-256-GCM + X25519 KEM</span>
+                </div>
+                <SecurityBadge status="VERIFIED" label="Ready" />
+              </div>
+
+              <div className="flex items-start justify-between text-xs">
+                <div>
+                  <span className="font-medium text-ink block">NEAR Testnet contract</span>
+                  <span className="text-[11px] text-muted">proofroom.testnet</span>
+                </div>
+                <SecurityBadge status="VERIFIED" label="Connected" />
+              </div>
             </div>
 
-            <div className="pt-3 border-t border-border/50 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-foreground">Storage Encryption</span>
-                <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
-                  AES-256-GCM
-                </span>
-              </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Ciphertext stored with private short-lived URLs. Server has zero access to DEKs.
-              </p>
-            </div>
+            <Link href="/app/security" className="block pt-1">
+              <Button size="sm" variant="outline" className="w-full text-xs">
+                Inspect attestation details
+              </Button>
+            </Link>
+          </GlassCard>
 
-            <div className="pt-3 border-t border-border/50 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-foreground">Testnet Audit Trail</span>
-                <span className="font-mono text-secondary font-semibold">ANCHORED</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Tamper-evident commitments recorded on contract{" "}
-                <span className="font-mono text-foreground font-semibold">proofroom.testnet</span>.
-              </p>
-            </div>
-
-            <div className="pt-2">
-              <Link href="/app/security">
-                <Button size="sm" variant="glass" className="w-full">
-                  Open Security Center
-                </Button>
-              </Link>
-            </div>
-          </div>
+          {/* Quick Guidance Box */}
+          <GlassCard radius="2xl" className="p-5 border-line bg-solid/80 space-y-2">
+            <h3 className="text-xs font-semibold text-ink flex items-center gap-1.5">
+              <FileLock2 className="w-3.5 h-3.5 text-accent" aria-hidden="true" />
+              <span>Confidentiality reminder</span>
+            </h3>
+            <p className="text-[11px] text-muted leading-relaxed">
+              Documents are encrypted in memory on your device before transfer. Only participants
+              with explicit X25519 key grants can decrypt document content.
+            </p>
+          </GlassCard>
         </div>
       </div>
     </div>

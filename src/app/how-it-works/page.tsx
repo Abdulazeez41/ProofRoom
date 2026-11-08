@@ -15,6 +15,8 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { GlassCard } from "@/components/ui/GlassCard";
+import { SecurityBadge } from "@/components/ui/Badge";
 
 export default function HowItWorksPage() {
   const [activeStep, setActiveStep] = useState(0);
@@ -23,9 +25,9 @@ export default function HowItWorksPage() {
     {
       id: "step-1",
       layer: "Layer 1 — Browser Client",
-      title: "1. Local AES-256-GCM Document Encryption",
+      title: "1. Local AES-256-GCM document encryption",
       summary:
-        "The document is read into browser memory and encrypted before touching the network. The backend never receives the original file or unwrapped keys.",
+        "The document is read into browser memory and encrypted before touching the network. Our servers only ever receive ciphertext and commitment hashes.",
       code: `// Generated locally in user's browser memory
 const dek = crypto.getRandomValues(new Uint8Array(32));
 const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -39,7 +41,7 @@ const ciphertext = await crypto.subtle.encrypt(
     {
       id: "step-2",
       layer: "Layer 2 — Key Envelopes & Access Grants",
-      title: "2. X25519 Key Wrapping & Wallet Binding",
+      title: "2. X25519 key wrapping & wallet binding",
       summary:
         "The Data Encryption Key (DEK) is encapsulated separately for each authorized participant using X25519 ECDH + HKDF-SHA256 authenticated wrapping.",
       code: `// Recipient key envelope creation
@@ -53,10 +55,10 @@ const encryptedDEK = await encryptAesGcm(wrappingKey, dek);`,
     },
     {
       id: "step-3",
-      layer: "Layer 4 — Confidential AI (Intel TDX)",
-      title: "3. Intel TDX Hardware Attestation Verification",
+      layer: "Layer 3 — Confidential AI (Intel TDX)",
+      title: "3. Intel TDX hardware attestation verification",
       summary:
-        "Before sending context, ProofRoom fetches and cryptographically verifies the model's Intel TDX Quote, measurements, and ReportData signing key binding.",
+        "Before sending context, ProofRoom verifies the model's Intel TDX Quote, measurements, and ReportData signing key binding.",
       code: `// Verifies Intel TDX Quote v4/v5 & ReportData commitment
 const quoteValid = verifyIntelTdxQuote(evidence.tdxQuoteBase64);
 const keyBound = evidence.reportDataHex.includes(
@@ -65,142 +67,130 @@ const keyBound = evidence.reportDataHex.includes(
 
 // Fail closed: If checks fail, halt immediately
 if (!quoteValid || !keyBound) {
-  throw new Error("Attestation Failed. Context refused.");
+  throw new Error("Attestation failed. Context refused.");
 }`,
     },
     {
       id: "step-4",
-      layer: "Layer 4 — E2EE Chat Protocol",
-      title: "4. End-to-End Encrypted Prompt Relay",
+      layer: "Layer 4 — NEAR AI Cloud Relay",
+      title: "4. End-to-end encrypted AI inference",
       summary:
-        "Retrieved document passages and queries are encrypted for the attested model public key. The server relays ciphertext while keeping API credentials server-side.",
-      code: `// Browser encrypts prompt for model TEE enclave
-const requestCiphertext = await encryptChatPayload(
-  { messages, model: "deepseek-ai/DeepSeek-V3.1" },
-  enclavePublicKey
+        "Inference prompts are encrypted with AES-256-GCM for the enclave's public key. The application backend acts solely as a zero-knowledge relay.",
+      code: `// Encrypted chat request creation
+const encryptedPayload = await encryptChatRequest(
+  messages,
+  "deepseek-ai/DeepSeek-V3.1",
+  enclavePublicKeyHex
 );
 
-// Backend relays ciphertext without reading contents
-POST /api/ai/relay -> NEAR AI Cloud (Intel TDX)`,
+// Relayed over HTTPS directly to TDX enclave
+const relayResponse = await fetch("/api/ai/relay", {
+  method: "POST",
+  body: JSON.stringify(encryptedPayload)
+});`,
     },
     {
       id: "step-5",
-      layer: "Layer 5 — NEAR Testnet On-Chain Anchoring",
-      title: "5. Privacy-Preserving Activity Receipts",
+      layer: "Layer 5 — Blockchain Commitments",
+      title: "5. NEAR Testnet on-chain audit trail",
       summary:
-        "The enclave signs the result. ProofRoom verifies the signature and anchors an immutable activity receipt to the NEAR Testnet smart contract.",
-      code: `// Response verified and anchored on NEAR Testnet
-const sigValid = verifyEnclaveResponseSignature(reqHash, resHash, sig);
-await proofroomContract.record_query_receipt({
-  room_id: opaqueRoomId,
-  receipt_hash: sha256(\`receipt:\${reqHash}:\${resHash}\`),
-  verification_status: "VERIFIED"
-});`,
+        "Cryptographic activity receipts and document hashes are anchored on NEAR Testnet, providing a permanent, tamper-evident audit record.",
+      code: `// Records verification outcome on NEAR smart contract
+pub fn record_query_receipt(
+  &mut self,
+  room_id: String,
+  receipt_hash: String,
+  verification_status: String,
+  timestamp: u64
+) {
+  // Anchors commitment permanently to blockchain block
+}`,
     },
   ];
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-12">
-      {/* Page Header */}
-      <div className="max-w-3xl space-y-3">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
-          <Layers className="w-3.5 h-3.5" />
-          <span>Interactive Architectural Walkthrough</span>
-        </div>
-        <h1 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">
-          How ProofRoom Works
+    <div className="flex flex-col items-center w-full py-12 md:py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-12">
+      {/* Page Title */}
+      <div className="text-center max-w-3xl space-y-3">
+        <SecurityBadge status="VERIFIED" label="End-to-end technical pipeline" />
+        <h1 className="hero-headline text-ink text-balance">
+          How ProofRoom verifies every step
         </h1>
-        <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-          Trace a confidential document through client encryption, asymmetric key envelopes, Intel TDX hardware attestation, and NEAR Testnet on-chain anchoring.
+        <p className="text-base sm:text-lg text-muted prose-restricted mx-auto text-balance">
+          Explore the five security layers that ensure your confidential fundraising documents are
+          never exposed in plaintext to server operators or cloud hosts.
         </p>
       </div>
 
-      {/* Interactive Step Navigator */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Step Selector */}
-        <div className="lg:col-span-5 space-y-3">
-          {steps.map((st, idx) => (
+      {/* Interactive Step Explorer */}
+      <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Navigation list */}
+        <div className="lg:col-span-5 space-y-2.5">
+          {steps.map((step, idx) => (
             <button
-              key={st.id}
+              key={step.id}
+              type="button"
               onClick={() => setActiveStep(idx)}
-              className={`w-full text-left p-4 rounded-2xl border transition-all space-y-1.5 ${
+              className={`w-full p-4 rounded-2xl border text-left transition-all min-h-[44px] ${
                 activeStep === idx
-                  ? "glass-panel-elevated border-primary/50 shadow-md shadow-primary/10 bg-primary/5 text-foreground"
-                  : "glass-panel border-border/70 text-muted-foreground hover:text-foreground hover:bg-surface-elevated"
+                  ? "bg-accent/10 border-accent shadow-sm"
+                  : "glass border-line hover:border-accent/40"
               }`}
             >
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-mono text-primary font-bold">{st.layer}</span>
-                {activeStep === idx && <CheckCircle2 className="w-4 h-4 text-primary" />}
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] font-mono text-accent font-semibold uppercase">
+                  {step.layer}
+                </span>
+                {activeStep === idx && (
+                  <CheckCircle2 className="w-4 h-4 text-accent" aria-hidden="true" />
+                )}
               </div>
-              <h3 className="font-semibold text-sm text-foreground">{st.title}</h3>
-              <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
-                {st.summary}
-              </p>
+              <h3 className="font-semibold text-ink text-sm sm:text-base">{step.title}</h3>
             </button>
           ))}
         </div>
 
-        {/* Right Detail & Code Card */}
-        <div className="lg:col-span-7 glass-panel-elevated rounded-3xl p-6 border border-border shadow-glass-elevated space-y-5">
-          <div className="space-y-2 pb-4 border-b border-border/50">
-            <span className="text-xs font-mono font-bold text-primary uppercase">
+        {/* Step details display */}
+        <GlassCard radius="3xl" className="lg:col-span-7 p-6 sm:p-8 border-line space-y-5 bg-solid/80">
+          <div className="space-y-2">
+            <span className="text-xs font-mono font-semibold text-accent uppercase">
               {steps[activeStep].layer}
             </span>
-            <h2 className="text-xl font-bold text-foreground">{steps[activeStep].title}</h2>
-            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+            <h2 className="text-xl sm:text-2xl font-bold text-ink">{steps[activeStep].title}</h2>
+            <p className="text-xs sm:text-sm text-muted leading-relaxed">
               {steps[activeStep].summary}
             </p>
           </div>
 
-          <div className="space-y-2">
-            <span className="text-xs font-semibold text-foreground flex items-center justify-between">
-              <span>Cryptographic Protocol Code</span>
-              <span className="text-[10px] text-muted-foreground font-mono">TypeScript / WebCrypto</span>
-            </span>
-
-            <div className="p-4 rounded-2xl bg-slate-950 text-slate-100 font-mono text-xs overflow-x-auto border border-slate-800 shadow-inner">
-              <pre>
-                <code>{steps[activeStep].code}</code>
-              </pre>
-            </div>
+          <div className="space-y-2 pt-2">
+            <span className="text-xs font-semibold text-ink">Code implementation</span>
+            <pre className="p-4 rounded-2xl bg-ink text-solid font-mono text-xs overflow-x-auto leading-relaxed border border-line">
+              <code>{steps[activeStep].code}</code>
+            </pre>
           </div>
-
-          <div className="pt-2 flex items-center justify-between">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={activeStep === 0}
-              onClick={() => setActiveStep((prev) => Math.max(0, prev - 1))}
-            >
-              Previous
-            </Button>
-
-            <Button
-              size="sm"
-              variant="primary"
-              disabled={activeStep === steps.length - 1}
-              onClick={() => setActiveStep((prev) => Math.min(steps.length - 1, prev + 1))}
-              icon={<ChevronRight className="w-4 h-4" />}
-            >
-              Next Step
-            </Button>
-          </div>
-        </div>
+        </GlassCard>
       </div>
 
-      {/* Bottom CTA */}
-      <div className="p-8 rounded-3xl glass-panel border border-border text-center space-y-4 max-w-3xl mx-auto">
-        <h3 className="text-xl font-bold text-foreground">Ready to test with your own documents?</h3>
-        <p className="text-xs sm:text-sm text-muted-foreground max-w-md mx-auto">
-          Create a private virtual room or explore the Northstar Technologies Series A seed dataset.
+      {/* Call to action */}
+      <GlassCard radius="2xl" className="w-full p-8 text-center border-line space-y-4 max-w-2xl bg-bg2/40">
+        <h3 className="text-lg font-bold text-ink">Ready to explore ProofRoom?</h3>
+        <p className="text-xs sm:text-sm text-muted">
+          Connect your testnet wallet to inspect our live workspace, upload files, and verify
+          attestation.
         </p>
-        <Link href="/app">
-          <Button size="md" variant="primary" icon={<ArrowRight className="w-4 h-4" />}>
-            Open Workspace
-          </Button>
-        </Link>
-      </div>
+        <div className="flex justify-center gap-3 pt-2">
+          <Link href="/app/rooms/new">
+            <Button size="md" variant="primary" icon={<ArrowRight className="w-4 h-4" />}>
+              Create private room
+            </Button>
+          </Link>
+          <Link href="/security">
+            <Button size="md" variant="outline">
+              Inspect security center
+            </Button>
+          </Link>
+        </div>
+      </GlassCard>
     </div>
   );
 }

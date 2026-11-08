@@ -6,15 +6,12 @@ import {
   FolderLock,
   PlusCircle,
   Search,
-  Filter,
   ChevronRight,
-  ShieldCheck,
-  Building2,
-  Clock,
   RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { SecurityBadge } from "@/components/ui/Badge";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { useWallet } from "@/context/WalletContext";
 
 interface RoomItem {
@@ -60,7 +57,8 @@ export default function RoomsListPage() {
   const filteredRooms = rooms.filter((r) => {
     const matchesSearch =
       r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.companyName.toLowerCase().includes(searchQuery.toLowerCase());
+      r.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.purpose.toLowerCase().includes(searchQuery.toLowerCase());
 
     if (!matchesSearch) return false;
 
@@ -68,143 +66,137 @@ export default function RoomsListPage() {
       return accountId && r.owner.nearAccountId === accountId;
     }
     if (filterTab === "SHARED") {
-      return (
-        accountId &&
-        r.owner.nearAccountId !== accountId &&
-        r.participants?.some((p) => p.participantNearAccount === accountId)
-      );
+      return accountId && r.owner.nearAccountId !== accountId;
     }
     return true;
   });
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <div className="space-y-6 animate-in fade-in duration-150">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-line">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Confidential Rooms</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Manage your encrypted virtual workspaces and participant permissions.
+          <h1 className="text-2xl font-bold tracking-tight text-ink">Confidential rooms</h1>
+          <p className="text-xs sm:text-sm text-muted mt-1">
+            Browse and manage your active fundraising and due diligence rooms.
           </p>
         </div>
 
         <Link href="/app/rooms/new">
-          <Button size="sm" variant="primary" icon={<PlusCircle className="w-3.5 h-3.5" />}>
+          <Button size="sm" variant="primary" icon={<PlusCircle className="w-4 h-4" />}>
             Create new room
           </Button>
         </Link>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-2 rounded-2xl glass-panel border border-border">
-        {/* Tab Buttons */}
-        <div className="flex items-center gap-1 w-full sm:w-auto">
+      {/* Filter & Search Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Filter Tabs */}
+        <div className="flex items-center p-1 rounded-2xl glass border border-line">
           <button
+            type="button"
             onClick={() => setFilterTab("ALL")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
-              filterTab === "ALL"
-                ? "bg-primary text-primary-foreground font-semibold shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+            className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors touch-target ${
+              filterTab === "ALL" ? "bg-accent text-accent-ink font-semibold" : "text-muted hover:text-ink"
             }`}
           >
-            All Rooms ({rooms.length})
+            All rooms ({rooms.length})
           </button>
           <button
+            type="button"
             onClick={() => setFilterTab("OWNED")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
-              filterTab === "OWNED"
-                ? "bg-primary text-primary-foreground font-semibold shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+            className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors touch-target ${
+              filterTab === "OWNED" ? "bg-accent text-accent-ink font-semibold" : "text-muted hover:text-ink"
             }`}
           >
-            My Rooms
+            My rooms
           </button>
           <button
+            type="button"
             onClick={() => setFilterTab("SHARED")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
-              filterTab === "SHARED"
-                ? "bg-primary text-primary-foreground font-semibold shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+            className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors touch-target ${
+              filterTab === "SHARED" ? "bg-accent text-accent-ink font-semibold" : "text-muted hover:text-ink"
             }`}
           >
-            Shared With Me
+            Shared with me
           </button>
         </div>
 
         {/* Search Input */}
         <div className="relative w-full sm:w-64">
-          <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-muted absolute left-3 top-3.5" aria-hidden="true" />
           <input
             type="text"
             placeholder="Search by name or company..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 rounded-xl glass-panel border border-border text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground"
+            className="w-full pl-9 pr-3.5 py-2.5 rounded-xl glass border border-line text-xs sm:text-sm text-ink focus:outline-none focus:ring-[3px] focus:ring-info min-h-[44px]"
           />
         </div>
       </div>
 
       {/* Rooms List */}
       {loading ? (
-        <div className="p-12 text-center rounded-3xl glass-panel text-xs text-muted-foreground space-y-2">
-          <RefreshCw className="w-5 h-5 animate-spin mx-auto text-primary" />
+        <div className="p-12 text-center rounded-2xl glass text-xs text-muted space-y-2">
+          <RefreshCw className="w-5 h-5 animate-spin mx-auto text-accent" aria-hidden="true" />
           <p>Loading rooms...</p>
         </div>
       ) : filteredRooms.length === 0 ? (
-        <div className="p-12 text-center rounded-3xl glass-panel border border-border space-y-3">
-          <FolderLock className="w-8 h-8 text-muted-foreground/40 mx-auto" />
-          <p className="text-xs text-muted-foreground">No matching confidential rooms found.</p>
-        </div>
+        <GlassCard radius="2xl" className="p-8 text-center border-line space-y-4">
+          <FolderLock className="w-10 h-10 text-muted/50 mx-auto" aria-hidden="true" />
+          <div className="space-y-1">
+            <h3 className="font-semibold text-ink text-sm">No rooms found</h3>
+            <p className="text-xs text-muted max-w-sm mx-auto">
+              No rooms match your filter or search criteria.
+            </p>
+          </div>
+          <Link href="/app/rooms/new">
+            <Button size="sm" variant="primary">
+              Create new room
+            </Button>
+          </Link>
+        </GlassCard>
       ) : (
         <div className="space-y-3">
-          {filteredRooms.map((room) => {
-            const isOwner = accountId && room.owner.nearAccountId === accountId;
+          {filteredRooms.map((room) => (
+            <Link
+              key={room.id}
+              href={`/app/rooms/${room.id}`}
+              className="block p-5 rounded-2xl glass border border-line hover:border-accent/40 transition-all duration-150 group"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-ink group-hover:text-accent transition-colors text-base">
+                      {room.name}
+                    </h3>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-line/20 text-muted">
+                      {room.purpose}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted">
+                    Company: <strong className="text-ink">{room.companyName}</strong> · Owner:{" "}
+                    <span className="font-mono text-accent">{room.owner.nearAccountId}</span>
+                  </p>
+                </div>
 
-            return (
-              <Link
-                key={room.id}
-                href={`/app/rooms/${room.id}`}
-                className="block p-5 rounded-3xl glass-panel-elevated border border-border hover:border-primary/40 transition-all duration-200 group"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors text-base">
-                        {room.name}
-                      </h3>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-foreground/5 text-muted-foreground border border-border/50">
-                        {room.purpose}
-                      </span>
-                      {isOwner && (
-                        <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
-                          Owner
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Company: <strong className="text-foreground">{room.companyName}</strong> • Owner:{" "}
-                      <span className="font-mono text-primary">{room.owner.nearAccountId}</span>
-                    </p>
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="text-right text-xs">
+                    <span className="font-medium text-ink block">
+                      {room._count.documents} docs · {room._count.participants} members
+                    </span>
+                    <span className="text-[10px] text-muted">
+                      {room._count.auditReceipts} verifications
+                    </span>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right text-xs">
-                      <span className="font-medium text-foreground block">
-                        {room._count.documents} Docs • {room._count.participants} Members
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {room._count.auditReceipts} Verifications
-                      </span>
-                    </div>
-
-                    <div className="w-8 h-8 rounded-full bg-foreground/5 group-hover:bg-primary group-hover:text-primary-foreground flex items-center justify-center transition-colors">
-                      <ChevronRight className="w-4 h-4" />
-                    </div>
+                  <div className="w-8 h-8 rounded-full bg-line/20 group-hover:bg-accent group-hover:text-accent-ink flex items-center justify-center transition-colors">
+                    <ChevronRight className="w-4 h-4" aria-hidden="true" />
                   </div>
                 </div>
-              </Link>
-            );
-          })}
+              </div>
+            </Link>
+          ))}
         </div>
       )}
     </div>

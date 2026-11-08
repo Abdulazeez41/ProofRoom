@@ -7,13 +7,13 @@ import {
   FolderPlus,
   ShieldCheck,
   Building2,
-  Calendar,
   Lock,
   ArrowRight,
   AlertCircle,
   ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { useWallet } from "@/context/WalletContext";
 
 export default function NewRoomPage() {
@@ -39,7 +39,7 @@ export default function NewRoomPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !companyName.trim()) {
-      setErrorMsg("Room Name and Company Name are required.");
+      setErrorMsg("Room name and company name are required.");
       return;
     }
 
@@ -75,26 +75,26 @@ export default function NewRoomPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-200">
+    <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-150">
       {/* Back Link */}
       <Link
         href="/app"
-        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors font-medium"
+        className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-ink transition-colors font-medium touch-target"
       >
-        <ArrowLeft className="w-3.5 h-3.5" />
-        Back to Dashboard
+        <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+        <span>Back to workspace</span>
       </Link>
 
-      <div className="rounded-3xl glass-panel-elevated border border-border shadow-glass-elevated p-6 sm:p-8 space-y-6">
+      <GlassCard radius="3xl" className="p-6 sm:p-8 space-y-6 bg-solid/80 border-line">
         {/* Header */}
-        <div className="space-y-1.5 pb-4 border-b border-border/50">
+        <div className="space-y-1 pb-4 border-b border-line">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-              <FolderPlus className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
+              <FolderPlus className="w-5 h-5" aria-hidden="true" />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-foreground">Create Confidential Room</h1>
-              <p className="text-xs text-muted-foreground">
+              <h1 className="text-xl sm:text-2xl font-bold text-ink">Create confidential room</h1>
+              <p className="text-xs text-muted">
                 Set up an encrypted virtual data room with wallet-controlled access.
               </p>
             </div>
@@ -102,8 +102,11 @@ export default function NewRoomPage() {
         </div>
 
         {errorMsg && (
-          <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-600 dark:text-rose-400 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
+          <div
+            role="alert"
+            className="p-3.5 rounded-2xl bg-bad/10 border border-bad/25 text-xs text-bad flex items-center gap-2"
+          >
+            <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
             <span>{errorMsg}</span>
           </div>
         )}
@@ -112,53 +115,65 @@ export default function NewRoomPage() {
           {/* Room Name & Company Name */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="font-semibold text-foreground">Room Name *</label>
+              <label htmlFor="room-name" className="font-semibold text-ink">
+                Room name *
+              </label>
               <input
+                id="room-name"
                 type="text"
                 required
                 placeholder="e.g. Series A Fundraising 2026"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl glass-panel border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground"
+                className="w-full px-3.5 py-2.5 rounded-xl glass border border-line text-ink focus:outline-none focus:ring-[3px] focus:ring-info placeholder:text-muted min-h-[44px]"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="font-semibold text-foreground">Company Name *</label>
+              <label htmlFor="company-name" className="font-semibold text-ink">
+                Company name *
+              </label>
               <input
+                id="company-name"
                 type="text"
                 required
                 placeholder="e.g. Northstar Technologies"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl glass-panel border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground"
+                className="w-full px-3.5 py-2.5 rounded-xl glass border border-line text-ink focus:outline-none focus:ring-[3px] focus:ring-info placeholder:text-muted min-h-[44px]"
               />
             </div>
           </div>
 
           {/* Description */}
           <div className="space-y-1.5">
-            <label className="font-semibold text-foreground">Description (Optional)</label>
+            <label htmlFor="room-desc" className="font-semibold text-ink">
+              Description (optional)
+            </label>
             <textarea
+              id="room-desc"
               rows={3}
               placeholder="State the objective, round size, or specific due diligence scope..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl glass-panel border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground resize-none"
+              className="w-full px-3.5 py-2.5 rounded-xl glass border border-line text-ink focus:outline-none focus:ring-[3px] focus:ring-info placeholder:text-muted resize-none min-h-[88px]"
             />
           </div>
 
-          {/* Purpose & Expiry */}
+          {/* Purpose & Expiration */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="font-semibold text-foreground">Room Purpose</label>
+              <label htmlFor="room-purpose" className="font-semibold text-ink">
+                Room purpose
+              </label>
               <select
+                id="room-purpose"
                 value={purpose}
                 onChange={(e) => setPurpose(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl glass-panel border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 bg-surface text-xs sm:text-sm"
+                className="w-full px-3.5 py-2.5 rounded-xl glass border border-line text-ink focus:outline-none focus:ring-[3px] focus:ring-info min-h-[44px]"
               >
                 {purposeOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
+                  <option key={opt.value} value={opt.value} className="bg-solid text-ink">
                     {opt.label}
                   </option>
                 ))}
@@ -166,46 +181,47 @@ export default function NewRoomPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="font-semibold text-foreground">Access Expiration (Optional)</label>
+              <label htmlFor="room-expiry" className="font-semibold text-ink">
+                Auto-expiry date (optional)
+              </label>
               <input
+                id="room-expiry"
                 type="date"
                 value={expiresAt}
                 onChange={(e) => setExpiresAt(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl glass-panel border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 text-xs sm:text-sm"
+                className="w-full px-3.5 py-2.5 rounded-xl glass border border-line text-ink focus:outline-none focus:ring-[3px] focus:ring-info min-h-[44px]"
               />
             </div>
           </div>
 
-          {/* Privacy Notice Banner */}
-          <div className="p-4 rounded-2xl bg-foreground/5 border border-border/80 space-y-1.5 text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-500" />
-              On-Chain Privacy Commitment Notice
+          {/* Owner Identity Binding Notice */}
+          <div className="p-4 rounded-2xl glass border border-line space-y-1.5 text-xs text-muted bg-line/5">
+            <span className="font-semibold text-ink flex items-center gap-1.5 text-xs">
+              <Lock className="w-3.5 h-3.5 text-accent" aria-hidden="true" />
+              <span>Wallet-bound ownership</span>
             </span>
-            <p className="leading-relaxed text-[11px]">
-              When you create this room, ProofRoom generates an opaque room identifier and cryptographic hash commitment on NEAR Testnet. Descriptive names, uploaded documents, and participant communication remain encrypted off-chain.
+            <p className="leading-relaxed">
+              Room ownership is bound to{" "}
+              <strong className="text-ink font-mono">{accountId || "founder.testnet"}</strong>.
+              All administrative operations and invitations are authenticated with single-use
+              NEP-413 signatures.
             </p>
           </div>
 
-          {/* Submit Action */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-border/50">
-            <Link href="/app">
-              <Button size="sm" variant="ghost" type="button">
-                Cancel
-              </Button>
-            </Link>
+          {/* Submit Button */}
+          <div className="pt-2">
             <Button
-              size="md"
+              size="lg"
               variant="primary"
-              type="submit"
+              className="w-full"
               loading={loading}
               icon={<ArrowRight className="w-4 h-4" />}
             >
-              Create Confidential Room
+              Create room & generate commitments
             </Button>
           </div>
         </form>
-      </div>
+      </GlassCard>
     </div>
   );
 }

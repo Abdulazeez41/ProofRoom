@@ -24,9 +24,14 @@ import {
   RefreshCw,
   ArrowLeft,
   X,
+  FileLock2,
+  HelpCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { SecurityBadge } from "@/components/ui/Badge";
+import { SecurityBadge, TestnetPill } from "@/components/ui/Badge";
+import { GlassCard } from "@/components/ui/GlassCard";
+import { VaultScene } from "@/components/vault/VaultScene";
+import { useVaultState, VaultState } from "@/hooks/useVaultState";
 import { AiAssistantPanel } from "@/components/ai/AiAssistantPanel";
 import { DocumentUploadModal } from "@/components/documents/DocumentUploadModal";
 import { useWallet } from "@/context/WalletContext";
@@ -87,16 +92,38 @@ export default function RoomWorkspacePage({
   const { accountId, userKeyPair } = useWallet();
   const [room, setRoom] = useState<RoomData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"DOCUMENTS" | "AI" | "PARTICIPANTS" | "ACTIVITY">("DOCUMENTS");
+
+  // Mobile navigation tabs
+  const [mobileTab, setMobileTab] = useState<"DOCUMENTS" | "AI" | "ACTIVITY">("DOCUMENTS");
+
+  // Live state tracking for vault hook
+  const [isEncrypting, setIsEncrypting] = useState(false);
+  const [aiVerificationState, setAiVerificationState] = useState<"VERIFIED" | "FAILED" | "PENDING" | null>(null);
+  const [receiptAnchored, setReceiptAnchored] = useState(false);
+
+  // Modals
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [inviteAccountId, setInviteAccountId] = useState("");
   const [inviteRole, setInviteRole] = useState("Investor");
   const [inviteLoading, setInviteLoading] = useState(false);
-  const [revokingAccountId, setRevokingAccountId] = useState<string | null>(null);
+
+  // Revocation modal
+  const [revokingParticipant, setRevokingParticipant] = useState<string | null>(null);
+  const [isRevokingLoading, setIsRevokingLoading] = useState(false);
+
+  // Decryption preview
   const [decryptedDocName, setDecryptedDocName] = useState<string | null>(null);
   const [decryptedContent, setDecryptedContent] = useState<string | null>(null);
   const [decryptingDocId, setDecryptingDocId] = useState<string | null>(null);
+
+  // Derive Vault State from real application events
+  const vaultState = useVaultState({
+    isEncrypting,
+    verificationStatus: aiVerificationState,
+    receiptStatus: receiptAnchored ? "ANCHORED" : null,
+    hasError: aiVerificationState === "FAILED",
+  });
 
   const fetchRoom = async () => {
     try {
@@ -107,6 +134,9 @@ export default function RoomWorkspacePage({
       const data = await res.json();
       if (data.success && data.room) {
         setRoom(data.room);
+        if (data.room.auditReceipts && data.room.auditReceipts.length > 0) {
+          setReceiptAnchored(true);
+        }
       }
     } catch (err) {
       console.error("Fetch room error:", err);
@@ -125,7 +155,7 @@ export default function RoomWorkspacePage({
   );
   const isAuthorized = isOwner || currentParticipant?.permissionStatus === "ACTIVE";
 
-  // Client-Side Decryption of a permitted document
+  // Client-Side Decryption
   const handleDownloadAndDecrypt = async (docId: string, docName: string) => {
     if (!accountId || !userKeyPair) {
       alert("Please connect your NEAR wallet first to decrypt documents.");
@@ -134,7 +164,6 @@ export default function RoomWorkspacePage({
 
     setDecryptingDocId(docId);
     try {
-      // Step 1: Fetch key envelope for the caller
       const envRes = await fetch(`/api/documents/${docId}/envelope?accountId=${accountId}`);
       const envData = await envRes.json();
 
@@ -142,21 +171,15 @@ export default function RoomWorkspacePage({
         throw new Error(envData.error || "Failed to retrieve your document key envelope.");
       }
 
-      // Step 2: Unwrap DEK using caller's X25519 private key
       const dek = await unwrapKeyEnvelope(envData.envelope, userKeyPair.privateKeyHex);
-
-      // Step 3: Fetch ciphertext blob
       const blobRes = await fetch(`/api/documents/${docId}/blob?accountId=${accountId}`);
       if (!blobRes.ok) {
         throw new Error("Failed to download encrypted document blob.");
       }
+
       const arrayBuffer = await blobRes.arrayBuffer();
       const ciphertext = new Uint8Array(arrayBuffer);
-
-      // In our AES-GCM envelope, the IV is in envData.envelope.ivHex
       const iv = base64ToBytes(envData.envelope.ivHex || envData.envelope.wrappedKeyBase64.substring(0, 16));
-
-      // Step 4: Decrypt locally in browser memory
       const decrypted = await decryptDocumentBytes(ciphertext, iv, dek);
       const text = new TextDecoder().decode(decrypted);
 
@@ -164,13 +187,13 @@ export default function RoomWorkspacePage({
       setDecryptedContent(text);
     } catch (err) {
       console.error("Decryption error:", err);
-      alert(`Client Decryption Notice: ${(err as Error).message}`);
+      alert(`Client decryption notice: ${(err as Error).message}`);
     } finally {
       setDecryptingDocId(null);
     }
   };
 
-  // Invite Participant
+  // Invite participant
   const handleInviteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteAccountId.trim() || !room) return;
@@ -197,112 +220,136 @@ export default function RoomWorkspacePage({
       setIsInviteModalOpen(false);
       await fetchRoom();
     } catch (err) {
-      alert(`Invite Error: ${(err as Error).message}`);
+      alert(`Invite error: ${(err as Error).message}`);
     } finally {
       setInviteLoading(false);
     }
   };
 
-  // Revoke Participant Access
-  const handleRevokeParticipant = async (participantAccount: string) => {
-    if (!room) return;
-    const confirmRevoke = window.confirm(
-      `Revoke access for ${participantAccount}?\n\nThis will immediately halt future file downloads and block new key distributions. Note that data already downloaded to their machine cannot be retroactively erased.`
-    );
-    if (!confirmRevoke) return;
-
-    setRevokingAccountId(participantAccount);
+  // Confirm revocation
+  const handleConfirmRevoke = async () => {
+    if (!revokingParticipant || !room) return;
+    setIsRevokingLoading(true);
     try {
       const res = await fetch("/api/participants", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           roomId: room.id,
-          participantAccountId: participantAccount,
-          action: "REVOKE",
+          participantAccountId: revokingParticipant,
           ownerAccountId: accountId || room.owner.nearAccountId,
         }),
       });
 
       const data = await res.json();
       if (!data.success) {
-        throw new Error(data.error || "Failed to revoke participant access");
+        throw new Error(data.error || "Failed to revoke participant");
       }
 
+      setRevokingParticipant(null);
       await fetchRoom();
     } catch (err) {
-      alert(`Revocation Error: ${(err as Error).message}`);
+      alert(`Revocation error: ${(err as Error).message}`);
     } finally {
-      setRevokingAccountId(null);
+      setIsRevokingLoading(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="p-16 text-center rounded-3xl glass-panel text-xs text-muted-foreground space-y-3">
-        <RefreshCw className="w-6 h-6 animate-spin mx-auto text-primary" />
-        <p>Loading confidential data room...</p>
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="flex flex-col items-center gap-3">
+          <RefreshCw className="w-6 h-6 animate-spin text-accent" aria-hidden="true" />
+          <p className="text-xs text-muted">Loading confidential room...</p>
+        </div>
       </div>
     );
   }
 
   if (!room) {
     return (
-      <div className="p-12 text-center rounded-3xl glass-panel border border-border space-y-3">
-        <FolderLock className="w-10 h-10 text-muted-foreground mx-auto" />
-        <h2 className="text-lg font-bold text-foreground">Room Not Found</h2>
-        <p className="text-xs text-muted-foreground">The requested confidential room does not exist or has expired.</p>
-        <Link href="/app/rooms">
+      <GlassCard radius="2xl" className="p-8 text-center border-line space-y-4 max-w-lg mx-auto mt-12">
+        <FolderLock className="w-10 h-10 text-muted mx-auto" aria-hidden="true" />
+        <h2 className="text-lg font-bold text-ink">Room not found</h2>
+        <p className="text-xs text-muted">
+          This room does not exist, or you lack the cryptographic credentials to inspect it.
+        </p>
+        <Link href="/app">
           <Button size="sm" variant="primary">
-            Return to Rooms List
+            Return to workspace
           </Button>
         </Link>
-      </div>
+      </GlassCard>
     );
   }
 
-  return (
-    <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Back Link */}
-      <Link
-        href="/app/rooms"
-        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors font-medium"
-      >
-        <ArrowLeft className="w-3.5 h-3.5" />
-        All Rooms
-      </Link>
+  const activeParticipantsCount = room.participants.filter(
+    (p) => p.permissionStatus === "ACTIVE"
+  ).length;
 
-      {/* Room Header Banner */}
-      <div className="p-6 rounded-3xl glass-panel-elevated border border-border space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{room.name}</h1>
-              <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-foreground/5 text-muted-foreground border border-border">
-                {room.purpose}
-              </span>
-              {isOwner && (
-                <span className="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
-                  Owner
-                </span>
-              )}
+  return (
+    <div className="space-y-6 animate-in fade-in duration-150">
+      {/* Breadcrumb Navigation */}
+      <div className="flex items-center gap-2 text-xs text-muted">
+        <Link href="/app" className="hover:text-ink transition-colors">
+          Workspace
+        </Link>
+        <span>/</span>
+        <Link href="/app/rooms" className="hover:text-ink transition-colors">
+          Rooms
+        </Link>
+        <span>/</span>
+        <span className="text-ink font-mono truncate max-w-xs">{room.name}</span>
+      </div>
+
+      {/* Room Header with Mini Vault Orb */}
+      <GlassCard radius="3xl" className="p-5 sm:p-6 border-line bg-solid/80">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-start sm:items-center gap-4">
+            {/* Live 3D Mini Vault Orb */}
+            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl glass border border-line flex items-center justify-center shrink-0 overflow-hidden relative">
+              <VaultScene state={vaultState} size="mini" />
             </div>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              Company: <strong className="text-foreground">{room.companyName}</strong> • Owner:{" "}
-              <span className="font-mono text-primary font-medium">{room.owner.nearAccountId}</span>
-            </p>
+
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-bold text-ink">{room.name}</h1>
+                <SecurityBadge
+                  status={room.status === "ACTIVE" ? "VERIFIED" : room.status}
+                  label={room.status === "ACTIVE" ? "Active" : room.status}
+                />
+              </div>
+
+              <p className="text-xs text-muted">
+                Company: <strong className="text-ink">{room.companyName}</strong> · Purpose:{" "}
+                <span className="text-ink">{room.purpose}</span>
+              </p>
+
+              <div className="flex flex-wrap items-center gap-3 pt-1 text-xs text-muted">
+                <span>
+                  Owner: <span className="font-mono text-accent">{room.owner.nearAccountId}</span>
+                </span>
+                <span>·</span>
+                <span>
+                  {activeParticipantsCount + 1} participant{activeParticipantsCount + 1 === 1 ? "" : "s"}
+                </span>
+                <span>·</span>
+                <span className="text-ok font-medium">AES-256-GCM encrypted</span>
+              </div>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
             {isOwner && (
               <>
                 <Button
                   size="sm"
-                  variant="glass"
+                  variant="outline"
                   onClick={() => setIsInviteModalOpen(true)}
                   icon={<UserPlus className="w-3.5 h-3.5" />}
                 >
-                  Invite Partner
+                  Invite investor
                 </Button>
                 <Button
                   size="sm"
@@ -310,419 +357,454 @@ export default function RoomWorkspacePage({
                   onClick={() => setIsUploadModalOpen(true)}
                   icon={<Upload className="w-3.5 h-3.5" />}
                 >
-                  Upload Encrypted Doc
+                  Upload file
                 </Button>
               </>
             )}
           </div>
         </div>
+      </GlassCard>
 
-        {/* Security / Privacy Metrics Ribbon */}
-        <div className="pt-3 border-t border-border/50 flex flex-wrap items-center justify-between gap-4 text-xs">
-          <div className="flex flex-wrap items-center gap-4">
-            <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-              <Lock className="w-3.5 h-3.5 text-primary" />
-              AES-256-GCM Browser Encrypted
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-              Intel TDX Confidential AI
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-              <Activity className="w-3.5 h-3.5 text-secondary" />
-              NEAR Testnet Anchored
-            </span>
-          </div>
-
-          <div className="text-[11px] font-mono text-muted-foreground">
-            Room ID: <span className="text-foreground">{room.opaqueRoomId}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Workspace Tabs */}
-      <div className="flex items-center gap-1 border-b border-border pb-1 text-xs sm:text-sm font-medium">
+      {/* Mobile Tabs Switcher */}
+      <div className="lg:hidden flex items-center p-1 rounded-2xl glass border border-line">
         <button
-          onClick={() => setActiveTab("DOCUMENTS")}
-          className={clsx(
-            "flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all",
-            activeTab === "DOCUMENTS"
-              ? "bg-primary text-primary-foreground font-semibold shadow-sm shadow-primary/20"
-              : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
-          )}
+          type="button"
+          onClick={() => setMobileTab("DOCUMENTS")}
+          className={`flex-1 py-2 text-xs font-medium rounded-xl transition-colors touch-target ${
+            mobileTab === "DOCUMENTS" ? "bg-accent text-accent-ink font-semibold" : "text-muted"
+          }`}
         >
-          <FileText className="w-4 h-4" />
-          <span>Documents ({room.documents.length})</span>
+          Documents ({room.documents.length})
         </button>
-
         <button
-          onClick={() => setActiveTab("AI")}
-          className={clsx(
-            "flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all",
-            activeTab === "AI"
-              ? "bg-primary text-primary-foreground font-semibold shadow-sm shadow-primary/20"
-              : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
-          )}
+          type="button"
+          onClick={() => setMobileTab("AI")}
+          className={`flex-1 py-2 text-xs font-medium rounded-xl transition-colors touch-target ${
+            mobileTab === "AI" ? "bg-accent text-accent-ink font-semibold" : "text-muted"
+          }`}
         >
-          <Sparkles className="w-4 h-4" />
-          <span>Private AI Due Diligence</span>
+          AI workspace
         </button>
-
         <button
-          onClick={() => setActiveTab("PARTICIPANTS")}
-          className={clsx(
-            "flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all",
-            activeTab === "PARTICIPANTS"
-              ? "bg-primary text-primary-foreground font-semibold shadow-sm shadow-primary/20"
-              : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
-          )}
+          type="button"
+          onClick={() => setMobileTab("ACTIVITY")}
+          className={`flex-1 py-2 text-xs font-medium rounded-xl transition-colors touch-target ${
+            mobileTab === "ACTIVITY" ? "bg-accent text-accent-ink font-semibold" : "text-muted"
+          }`}
         >
-          <Users className="w-4 h-4" />
-          <span>Participants ({room.participants.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab("ACTIVITY")}
-          className={clsx(
-            "flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all",
-            activeTab === "ACTIVITY"
-              ? "bg-primary text-primary-foreground font-semibold shadow-sm shadow-primary/20"
-              : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
-          )}
-        >
-          <Activity className="w-4 h-4" />
-          <span>On-Chain Activity ({room.auditReceipts.length})</span>
+          Activity ({room.auditReceipts.length})
         </button>
       </div>
 
-      {/* TAB 1: DOCUMENTS */}
-      {activeTab === "DOCUMENTS" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Encrypted Document Vault</h2>
-            {isOwner && (
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={() => setIsUploadModalOpen(true)}
-                icon={<Upload className="w-3.5 h-3.5" />}
-              >
-                Upload File
-              </Button>
-            )}
-          </div>
-
-          {room.documents.length === 0 ? (
-            <div className="p-12 text-center rounded-3xl glass-panel border border-border space-y-3">
-              <FileText className="w-10 h-10 text-muted-foreground/40 mx-auto" />
-              <p className="text-xs text-muted-foreground">No documents uploaded yet.</p>
+      {/* Desktop 2-3 Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column (Desktop: 5 cols): Documents & Access Control */}
+        <div
+          className={clsx(
+            "lg:col-span-5 space-y-6",
+            mobileTab !== "DOCUMENTS" && "hidden lg:block"
+          )}
+        >
+          {/* Documents Section */}
+          <GlassCard radius="2xl" className="p-5 border-line space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-ink flex items-center gap-2">
+                <FileText className="w-4 h-4 text-accent" aria-hidden="true" />
+                <span>Documents ({room.documents.length})</span>
+              </h2>
               {isOwner && (
-                <Button size="sm" variant="primary" onClick={() => setIsUploadModalOpen(true)}>
-                  Upload First Document
-                </Button>
+                <button
+                  type="button"
+                  onClick={() => setIsUploadModalOpen(true)}
+                  className="text-xs text-accent hover:underline font-medium"
+                >
+                  + Add file
+                </button>
               )}
             </div>
-          ) : (
-            <div className="rounded-3xl glass-panel-elevated border border-border overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-border bg-foreground/[0.02] text-muted-foreground uppercase tracking-wider font-semibold">
-                      <th className="p-4">Document Name</th>
-                      <th className="p-4">Category</th>
-                      <th className="p-4">Encryption Status</th>
-                      <th className="p-4">Ciphertext SHA-256</th>
-                      <th className="p-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/50">
-                    {room.documents.map((doc) => (
-                      <tr key={doc.id} className="hover:bg-foreground/[0.015] transition-colors">
-                        <td className="p-4 font-semibold text-foreground flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-primary shrink-0" />
-                          <span className="truncate max-w-[200px] sm:max-w-xs">{doc.name}</span>
-                        </td>
-                        <td className="p-4 text-muted-foreground">{doc.category}</td>
-                        <td className="p-4">
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                            <Lock className="w-3 h-3" />
-                            AES-256-GCM
-                          </span>
-                        </td>
-                        <td className="p-4 font-mono text-[11px] text-muted-foreground">
-                          {doc.ciphertextHash.substring(0, 16)}...
-                        </td>
-                        <td className="p-4 text-right space-x-2">
-                          <Button
-                            size="sm"
-                            variant="glass"
-                            loading={decryptingDocId === doc.id}
-                            onClick={() => handleDownloadAndDecrypt(doc.id, doc.name)}
-                            icon={<Download className="w-3.5 h-3.5" />}
-                          >
-                            Decrypt Locally
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
 
-          {/* Local Decrypted Content Viewer Modal */}
-          {decryptedDocName && decryptedContent && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md">
-              <div className="w-full max-w-2xl rounded-3xl glass-panel-elevated border border-border shadow-glass-elevated p-6 space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-border/50">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                    <div>
-                      <h3 className="font-semibold text-sm text-foreground">Locally Decrypted: {decryptedDocName}</h3>
-                      <p className="text-[11px] text-muted-foreground">Decrypted exclusively in your browser memory</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setDecryptedDocName(null);
-                      setDecryptedContent(null);
-                    }}
-                    className="p-1.5 rounded-xl hover:bg-foreground/5 text-muted-foreground"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-foreground/5 max-h-96 overflow-y-auto font-mono text-xs text-foreground whitespace-pre-wrap leading-relaxed border border-border/50">
-                  {decryptedContent}
-                </div>
-
-                <div className="flex justify-end">
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onClick={() => {
-                      setDecryptedDocName(null);
-                      setDecryptedContent(null);
-                    }}
-                  >
-                    Close Viewer
+            {room.documents.length === 0 ? (
+              <div className="p-6 text-center rounded-xl border border-dashed border-line text-xs text-muted space-y-2">
+                <FileLock2 className="w-8 h-8 text-muted/40 mx-auto" aria-hidden="true" />
+                <p>No documents uploaded yet.</p>
+                {isOwner && (
+                  <Button size="sm" variant="outline" onClick={() => setIsUploadModalOpen(true)}>
+                    Upload first document
                   </Button>
-                </div>
+                )}
               </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB 2: AI ASSISTANT */}
-      {activeTab === "AI" && (
-        <div className="glass-panel-elevated rounded-3xl p-6 border border-border min-h-[500px]">
-          <AiAssistantPanel roomId={room.opaqueRoomId} isAuthorized={isAuthorized} />
-        </div>
-      )}
-
-      {/* TAB 3: PARTICIPANTS */}
-      {activeTab === "PARTICIPANTS" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Authorized Room Participants</h2>
-            {isOwner && (
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={() => setIsInviteModalOpen(true)}
-                icon={<UserPlus className="w-3.5 h-3.5" />}
-              >
-                Invite Partner
-              </Button>
-            )}
-          </div>
-
-          <div className="rounded-3xl glass-panel-elevated border border-border overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-border bg-foreground/[0.02] text-muted-foreground uppercase tracking-wider font-semibold">
-                    <th className="p-4">Participant Account</th>
-                    <th className="p-4">Role</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4">Invited Date</th>
-                    {isOwner && <th className="p-4 text-right">Actions</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/50">
-                  {/* Owner Row */}
-                  <tr className="hover:bg-foreground/[0.015] transition-colors">
-                    <td className="p-4 font-mono font-semibold text-foreground">
-                      {room.owner.nearAccountId} (Owner)
-                    </td>
-                    <td className="p-4 text-muted-foreground">Data Room Administrator</td>
-                    <td className="p-4">
-                      <SecurityBadge status="ACTIVE" label="Owner Active" />
-                    </td>
-                    <td className="p-4 text-muted-foreground">{new Date(room.createdAt).toLocaleDateString()}</td>
-                    {isOwner && <td className="p-4 text-right text-muted-foreground italic">Owner</td>}
-                  </tr>
-
-                  {/* Participant Rows */}
-                  {room.participants.map((p) => (
-                    <tr key={p.id} className="hover:bg-foreground/[0.015] transition-colors">
-                      <td className="p-4 font-mono text-foreground font-semibold">
-                        {p.participantNearAccount}
-                      </td>
-                      <td className="p-4 text-muted-foreground">Authorized Lead Investor</td>
-                      <td className="p-4">
-                        <SecurityBadge status={p.permissionStatus} />
-                      </td>
-                      <td className="p-4 text-muted-foreground">{new Date(p.invitedAt).toLocaleDateString()}</td>
-                      {isOwner && (
-                        <td className="p-4 text-right">
-                          {p.permissionStatus === "ACTIVE" ? (
-                            <Button
-                              size="sm"
-                              variant="danger"
-                              loading={revokingAccountId === p.participantNearAccount}
-                              onClick={() => handleRevokeParticipant(p.participantNearAccount)}
-                            >
-                              Revoke Access
-                            </Button>
-                          ) : (
-                            <span className="text-[11px] text-rose-500 font-medium">Access Revoked</span>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4: ACTIVITY / AUDIT TRAIL */}
-      {activeTab === "ACTIVITY" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Privacy-Preserving On-Chain Audit Receipts</h2>
-            <span className="text-xs font-mono text-secondary">NEAR Testnet Verifiable</span>
-          </div>
-
-          {room.auditReceipts.length === 0 ? (
-            <div className="p-12 text-center rounded-3xl glass-panel border border-border space-y-2">
-              <Activity className="w-8 h-8 text-muted-foreground mx-auto" />
-              <p className="text-xs text-muted-foreground">No on-chain receipts registered yet.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {room.auditReceipts.map((rec) => (
-                <div
-                  key={rec.id}
-                  className="p-4 rounded-2xl glass-panel border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-foreground">{rec.eventType.replace(/_/g, " ")}</span>
-                      <SecurityBadge status={rec.verificationStatus} />
+            ) : (
+              <div className="space-y-2.5">
+                {room.documents.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="p-3.5 rounded-xl glass border border-line hover:border-accent/30 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-3.5 h-3.5 text-accent shrink-0" aria-hidden="true" />
+                        <span className="font-semibold text-ink truncate">{doc.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-muted">
+                        <span>{doc.category}</span>
+                        <span>·</span>
+                        <span>{(doc.encryptedSize / 1024).toFixed(1)} KB</span>
+                        <span>·</span>
+                        <span className="font-mono text-ok">AES-256-GCM</span>
+                      </div>
                     </div>
-                    <p className="text-[11px] font-mono text-muted-foreground">
-                      Receipt Hash: <span className="text-primary">{rec.receiptHash.substring(0, 24)}...</span>
-                    </p>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="glass"
+                        disabled={!isAuthorized || decryptingDocId === doc.id}
+                        loading={decryptingDocId === doc.id}
+                        onClick={() => handleDownloadAndDecrypt(doc.id, doc.name)}
+                        icon={<Eye className="w-3.5 h-3.5" />}
+                        className="text-xs py-1.5 px-3 min-h-[36px]"
+                      >
+                        Inspect
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </GlassCard>
+
+          {/* Access Control & Participants Section */}
+          <GlassCard radius="2xl" className="p-5 border-line space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-ink flex items-center gap-2">
+                <Users className="w-4 h-4 text-info" aria-hidden="true" />
+                <span>Authorized participants</span>
+              </h2>
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => setIsInviteModalOpen(true)}
+                  className="text-xs text-accent hover:underline font-medium"
+                >
+                  + Invite
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-2.5">
+              {/* Owner card */}
+              <div className="p-3 rounded-xl glass border border-line flex items-center justify-between text-xs">
+                <div>
+                  <div className="flex items-center gap-1.5 font-semibold text-ink font-mono">
+                    <span>{room.owner.nearAccountId}</span>
+                    <span className="text-[10px] bg-accent/10 text-accent px-1.5 py-0.2 rounded font-sans">
+                      Owner
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-muted">Full administrative permissions</span>
+                </div>
+                <SecurityBadge status="VERIFIED" label="Active" />
+              </div>
+
+              {/* Invited participants */}
+              {room.participants.map((p) => (
+                <div
+                  key={p.id}
+                  className="p-3 rounded-xl glass border border-line flex items-center justify-between gap-3 text-xs"
+                >
+                  <div>
+                    <div className="flex items-center gap-1.5 font-semibold text-ink font-mono">
+                      <span>{p.participantNearAccount}</span>
+                      <span className="text-[10px] bg-info/10 text-info px-1.5 py-0.2 rounded font-sans">
+                        Investor
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-muted">
+                      Invited: {new Date(p.invitedAt).toLocaleDateString()}
+                    </span>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <span className="text-[11px] text-muted-foreground">
-                      {new Date(rec.createdAt).toLocaleTimeString()}
-                    </span>
-                    {rec.transactionHash && (
-                      <a
-                        href={getExplorerTxUrl(rec.transactionHash)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline font-mono"
+                  <div className="flex items-center gap-2">
+                    <SecurityBadge
+                      status={p.permissionStatus === "ACTIVE" ? "VERIFIED" : "REVOKED"}
+                      label={p.permissionStatus === "ACTIVE" ? "Active" : "Revoked"}
+                    />
+                    {isOwner && p.permissionStatus === "ACTIVE" && (
+                      <button
+                        type="button"
+                        onClick={() => setRevokingParticipant(p.participantNearAccount)}
+                        className="p-1 rounded-lg text-bad hover:bg-bad/10 transition-colors"
+                        title="Revoke access"
                       >
-                        Tx Explorer <ExternalLink className="w-3 h-3" />
-                      </a>
+                        <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                        <span className="sr-only">Revoke access</span>
+                      </button>
                     )}
                   </div>
                 </div>
               ))}
             </div>
-          )}
+          </GlassCard>
         </div>
-      )}
 
-      {/* Upload Document Modal */}
+        {/* Center/Right Column (Desktop: 7 cols): AI Workspace & Activity */}
+        <div
+          className={clsx(
+            "lg:col-span-7 space-y-6",
+            mobileTab === "DOCUMENTS" && "hidden lg:block",
+            mobileTab === "ACTIVITY" && "hidden lg:block"
+          )}
+        >
+          {/* AI Workspace Panel */}
+          <GlassCard radius="3xl" className="p-5 sm:p-6 border-line min-h-[580px] flex flex-col">
+            <AiAssistantPanel
+              roomId={room.id}
+              isAuthorized={isAuthorized}
+              onVerificationStateChange={(status) => setAiVerificationState(status)}
+            />
+          </GlassCard>
+        </div>
+
+        {/* Activity Tab for Mobile or Bottom Section on Desktop */}
+        <div
+          className={clsx(
+            "lg:col-span-12 space-y-4",
+            mobileTab !== "ACTIVITY" && "hidden lg:block"
+          )}
+        >
+          <GlassCard radius="2xl" className="p-5 sm:p-6 border-line space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold text-ink flex items-center gap-2">
+                <Activity className="w-4 h-4 text-accent" aria-hidden="true" />
+                <span>On-chain audit receipts ({room.auditReceipts.length})</span>
+              </h2>
+              <span className="text-xs text-muted">Anchored on NEAR Testnet</span>
+            </div>
+
+            {room.auditReceipts.length === 0 ? (
+              <p className="text-xs text-muted text-center py-6">
+                No activity receipts anchored yet.
+              </p>
+            ) : (
+              <div className="space-y-2.5">
+                {room.auditReceipts.map((receipt) => (
+                  <div
+                    key={receipt.id}
+                    className="p-3.5 rounded-xl glass border border-line flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-ink font-mono">
+                          {receipt.eventType}
+                        </span>
+                        <SecurityBadge status="VERIFIED" label="Anchored" />
+                      </div>
+                      <p className="text-[11px] text-muted font-mono truncate max-w-md">
+                        Receipt Hash: {receipt.receiptHash}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-[11px] text-muted">
+                        {new Date(receipt.createdAt).toLocaleString()}
+                      </span>
+                      {receipt.transactionHash && (
+                        <a
+                          href={getExplorerTxUrl(receipt.transactionHash)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-accent hover:underline inline-flex items-center gap-1 text-[11px]"
+                        >
+                          <span>Explorer</span>
+                          <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </GlassCard>
+        </div>
+      </div>
+
+      {/* Document Upload Modal */}
       <DocumentUploadModal
         roomId={room.id}
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
-        onSuccess={fetchRoom}
+        onSuccess={() => {
+          setIsUploadModalOpen(false);
+          fetchRoom();
+        }}
         participantAccounts={room.participants.map((p) => ({
           nearAccountId: p.participantNearAccount,
           encryptionPublicKey: p.user?.encryptionPublicKey,
         }))}
       />
 
-      {/* Invite Modal */}
+      {/* Invite Investor Modal */}
       {isInviteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md">
-          <div className="w-full max-w-md rounded-3xl glass-panel-elevated border border-border shadow-glass-elevated p-6 space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b border-border/50">
-              <div className="flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-primary" />
-                <h3 className="font-semibold text-sm text-foreground">Invite Authorized Participant</h3>
-              </div>
-              <button
-                onClick={() => setIsInviteModalOpen(false)}
-                className="p-1 rounded-lg text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-sm"
+        >
+          <GlassCard
+            radius="3xl"
+            className="w-full max-w-md p-6 sm:p-8 space-y-5 bg-solid border-line shadow-2xl relative"
+          >
+            <button
+              type="button"
+              onClick={() => setIsInviteModalOpen(false)}
+              className="absolute top-5 right-5 p-2 rounded-xl text-muted hover:text-ink touch-target flex items-center justify-center"
+              aria-label="Close modal"
+            >
+              <X className="w-5 h-5" aria-hidden="true" />
+            </button>
+
+            <div className="space-y-1">
+              <h2 className="text-lg font-bold text-ink">Invite authorized investor</h2>
+              <p className="text-xs text-muted">
+                Grant access to document key envelopes anchored with a NEAR commitment.
+              </p>
             </div>
 
-            <form onSubmit={handleInviteSubmit} className="space-y-4 text-xs">
+            <form onSubmit={handleInviteSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="font-semibold text-foreground">Participant NEAR Account ID *</label>
+                <label htmlFor="invite-acc" className="text-xs font-semibold text-ink">
+                  NEAR Testnet account
+                </label>
                 <input
+                  id="invite-acc"
                   type="text"
-                  required
-                  placeholder="e.g. investor.testnet"
+                  placeholder="investor.testnet"
                   value={inviteAccountId}
                   onChange={(e) => setInviteAccountId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl glass-panel border border-border text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full px-3.5 py-2.5 rounded-xl glass border border-line text-xs sm:text-sm text-ink focus:outline-none focus:ring-[3px] focus:ring-info font-mono min-h-[44px]"
+                  required
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="font-semibold text-foreground">Role</label>
-                <select
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl glass-panel border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 bg-surface"
-                >
-                  <option value="Investor">Lead Investor / Due Diligence Analyst</option>
-                  <option value="Legal">Legal Counsel Reviewer</option>
-                  <option value="Auditor">Financial Auditor</option>
-                </select>
-              </div>
-
-              <div className="p-3 rounded-xl bg-foreground/5 text-muted-foreground leading-relaxed text-[11px]">
-                Upon invitation, the participant can connect their NEAR wallet to obtain the X25519 key envelopes for authorized documents.
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-border/50">
-                <Button size="sm" variant="ghost" onClick={() => setIsInviteModalOpen(false)}>
-                  Cancel
+              <div className="flex items-center gap-2 pt-2">
+                <Button size="md" variant="primary" className="w-full" loading={inviteLoading} type="submit">
+                  Send invitation
                 </Button>
-                <Button size="sm" variant="primary" type="submit" loading={inviteLoading}>
-                  Send Invitation
+                <Button size="md" variant="outline" onClick={() => setIsInviteModalOpen(false)} type="button">
+                  Cancel
                 </Button>
               </div>
             </form>
-          </div>
+          </GlassCard>
+        </div>
+      )}
+
+      {/* Revocation Confirmation Modal with Honest Disclosure */}
+      {revokingParticipant && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-sm"
+        >
+          <GlassCard
+            radius="3xl"
+            className="w-full max-w-md p-6 sm:p-8 space-y-5 bg-solid border-bad/30 shadow-2xl relative"
+          >
+            <div className="flex items-center gap-3 text-bad">
+              <AlertTriangle className="w-6 h-6 shrink-0" aria-hidden="true" />
+              <h2 className="text-lg font-bold">Revoke participant access</h2>
+            </div>
+
+            <div className="space-y-2 text-xs text-muted">
+              <p>
+                Are you sure you want to revoke access for{" "}
+                <strong className="text-ink font-mono">{revokingParticipant}</strong>?
+              </p>
+              {/* HARD RULE #4: Honest disclosure on revocation */}
+              <div className="p-3 rounded-xl bg-warn/10 border border-warn/25 text-ink space-y-1">
+                <p className="font-semibold text-warn">Important boundary:</p>
+                <p className="text-[11px] leading-relaxed">
+                  Revocation prevents this participant from receiving future document keys or
+                  querying the AI workspace. However, it cannot delete or erase files that the
+                  participant has already downloaded to their local computer.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <Button
+                size="md"
+                variant="danger"
+                className="w-full"
+                loading={isRevokingLoading}
+                onClick={handleConfirmRevoke}
+              >
+                Confirm revocation
+              </Button>
+              <Button
+                size="md"
+                variant="outline"
+                onClick={() => setRevokingParticipant(null)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </GlassCard>
+        </div>
+      )}
+
+      {/* Decrypted Document Local Viewer Modal */}
+      {decryptedContent && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-sm"
+        >
+          <GlassCard
+            radius="3xl"
+            className="w-full max-w-2xl max-h-[80vh] flex flex-col p-6 sm:p-8 space-y-4 bg-solid border-line shadow-2xl relative"
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setDecryptedDocName(null);
+                setDecryptedContent(null);
+              }}
+              className="absolute top-5 right-5 p-2 rounded-xl text-muted hover:text-ink touch-target flex items-center justify-center"
+              aria-label="Close modal"
+            >
+              <X className="w-5 h-5" aria-hidden="true" />
+            </button>
+
+            <div className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-accent" aria-hidden="true" />
+              <div>
+                <h2 className="text-base font-bold text-ink truncate max-w-md">
+                  {decryptedDocName}
+                </h2>
+                <span className="text-[11px] text-ok font-medium">
+                  Decrypted locally in browser memory with AES-256-GCM
+                </span>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 rounded-2xl glass border border-line bg-line/5 font-mono text-xs text-ink whitespace-pre-wrap leading-relaxed select-text">
+              {decryptedContent}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setDecryptedDocName(null);
+                  setDecryptedContent(null);
+                }}
+              >
+                Close viewer
+              </Button>
+            </div>
+          </GlassCard>
         </div>
       )}
     </div>

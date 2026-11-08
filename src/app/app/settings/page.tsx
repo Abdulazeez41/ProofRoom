@@ -12,6 +12,8 @@ import {
   LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { SecurityBadge, TestnetPill } from "@/components/ui/Badge";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { useWallet } from "@/context/WalletContext";
 import { NEAR_CONFIG } from "@/lib/near/config";
 
@@ -28,86 +30,111 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="max-w-3xl space-y-8 animate-in fade-in duration-200">
+    <div className="max-w-3xl space-y-8 animate-in fade-in duration-150">
       {/* Header */}
-      <div className="space-y-1 pb-4 border-b border-border/50">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Settings & Configuration</h1>
-        <p className="text-xs sm:text-sm text-muted-foreground">
-          Manage your client cryptographic identity, blockchain network settings, and workspace preferences.
+      <div className="space-y-1 pb-4 border-b border-line">
+        <h1 className="text-2xl font-bold tracking-tight text-ink">Settings & configuration</h1>
+        <p className="text-xs sm:text-sm text-muted">
+          Manage your client cryptographic identity, blockchain network settings, and workspace
+          preferences.
         </p>
       </div>
 
       {/* Section 1: Cryptographic Identity */}
-      <div className="p-6 rounded-3xl glass-panel-elevated border border-border space-y-4 text-xs">
-        <div className="flex items-center justify-between pb-3 border-b border-border/50">
+      <GlassCard radius="3xl" className="p-6 sm:p-8 border-line space-y-4 text-xs bg-solid/80">
+        <div className="flex items-center justify-between pb-3 border-b border-line">
           <div className="flex items-center gap-2">
-            <KeyRound className="w-4 h-4 text-primary" />
-            <h2 className="font-semibold text-sm text-foreground">Client Encryption Identity (X25519)</h2>
+            <KeyRound className="w-4 h-4 text-accent" aria-hidden="true" />
+            <h2 className="font-semibold text-sm text-ink">Client encryption identity (X25519)</h2>
           </div>
-          <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-            Client-Side Only
-          </span>
+          <SecurityBadge status="VERIFIED" label="Client-side only" />
         </div>
 
-        <p className="text-muted-foreground leading-relaxed">
-          Your browser generates and maintains an X25519 asymmetric keypair used exclusively for encrypting and unwrapping document Data Encryption Keys (DEKs). Private keys are never stored on ProofRoom servers.
+        <p className="text-muted leading-relaxed">
+          Your browser generates and maintains an X25519 asymmetric keypair used exclusively for
+          encrypting and unwrapping document Data Encryption Keys (DEKs). Private keys are never
+          stored on ProofRoom servers.
         </p>
 
-        <div className="p-3.5 rounded-2xl bg-foreground/5 border border-border/50 space-y-2">
+        <div className="p-3.5 rounded-2xl glass border border-line space-y-2 bg-line/5">
           <div className="flex items-center justify-between">
-            <span className="font-semibold text-foreground">Your Public Encryption Key</span>
+            <span className="font-semibold text-ink">Your public encryption key</span>
             <button
+              type="button"
               onClick={handleCopyKey}
-              className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+              className="p-1 rounded-lg text-muted hover:text-ink transition-colors flex items-center gap-1 text-[11px]"
             >
-              {copiedKey ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-              {copiedKey ? "Copied" : "Copy Key"}
+              {copiedKey ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-ok" aria-hidden="true" />
+                  <span className="text-ok">Copied</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Copy</span>
+                </>
+              )}
             </button>
           </div>
-          <p className="font-mono text-muted-foreground break-all text-[11px]">
-            {userKeyPair?.publicKeyHex || "Connect wallet to view key"}
+          <p className="font-mono text-[11px] text-muted break-all select-all">
+            {userKeyPair?.publicKeyHex || "Derived automatically upon wallet connection"}
           </p>
         </div>
-      </div>
+      </GlassCard>
 
-      {/* Section 2: Blockchain Network Environment */}
-      <div className="p-6 rounded-3xl glass-panel-elevated border border-border space-y-4 text-xs">
-        <div className="flex items-center gap-2 pb-3 border-b border-border/50">
-          <Globe className="w-4 h-4 text-secondary" />
-          <h2 className="font-semibold text-sm text-foreground">Blockchain Network Configuration</h2>
+      {/* Section 2: Blockchain Network Configuration */}
+      <GlassCard radius="3xl" className="p-6 sm:p-8 border-line space-y-4 text-xs bg-solid/80">
+        <div className="flex items-center justify-between pb-3 border-b border-line">
+          <div className="flex items-center gap-2">
+            <Globe className="w-4 h-4 text-info" aria-hidden="true" />
+            <h2 className="font-semibold text-sm text-ink">Blockchain network settings</h2>
+          </div>
+          <TestnetPill />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="p-3 rounded-2xl bg-foreground/5 border border-border/50 space-y-1">
-            <span className="text-[10px] text-muted-foreground uppercase font-bold">Network ID</span>
-            <p className="font-mono font-semibold text-foreground">{NEAR_CONFIG.networkId}</p>
+        <div className="space-y-3">
+          <div className="flex justify-between py-2 border-b border-line">
+            <span className="text-muted">Network:</span>
+            <span className="font-mono text-ink uppercase font-semibold">
+              {NEAR_CONFIG.networkId}
+            </span>
           </div>
-
-          <div className="p-3 rounded-2xl bg-foreground/5 border border-border/50 space-y-1">
-            <span className="text-[10px] text-muted-foreground uppercase font-bold">RPC Endpoint</span>
-            <p className="font-mono font-semibold text-foreground truncate">{NEAR_CONFIG.nodeUrl}</p>
+          <div className="flex justify-between py-2 border-b border-line">
+            <span className="text-muted">RPC node endpoint:</span>
+            <span className="font-mono text-ink text-[11px] truncate max-w-[280px]">
+              {NEAR_CONFIG.nodeUrl}
+            </span>
           </div>
-
-          <div className="p-3 rounded-2xl bg-foreground/5 border border-border/50 space-y-1 sm:col-span-2">
-            <span className="text-[10px] text-muted-foreground uppercase font-bold">Smart Contract ID</span>
-            <p className="font-mono font-semibold text-foreground">{NEAR_CONFIG.contractId}</p>
+          <div className="flex justify-between py-2 border-b border-line">
+            <span className="text-muted">Smart contract account:</span>
+            <span className="font-mono text-accent font-semibold">{NEAR_CONFIG.contractId}</span>
           </div>
         </div>
-      </div>
+      </GlassCard>
 
-      {/* Section 3: Session Management */}
-      <div className="p-6 rounded-3xl glass-panel border border-border flex items-center justify-between gap-4 text-xs">
-        <div>
-          <h3 className="font-semibold text-foreground text-sm">Active Wallet Session</h3>
-          <p className="text-muted-foreground">Connected as: <span className="font-mono font-medium text-foreground">{accountId || "None"}</span></p>
+      {/* Section 3: Connected Session & Logout */}
+      <GlassCard radius="3xl" className="p-6 sm:p-8 border-line space-y-4 text-xs bg-solid/80">
+        <div className="flex items-center justify-between pb-3 border-b border-line">
+          <h2 className="font-semibold text-sm text-ink">Session management</h2>
+          <span className="text-muted font-mono">{accountId || "Not connected"}</span>
         </div>
 
-        {accountId && (
-          <Button size="sm" variant="danger" onClick={disconnectWallet} icon={<LogOut className="w-3.5 h-3.5" />}>
-            Disconnect
+        <p className="text-muted leading-relaxed">
+          Disconnecting clears your ephemeral cryptographic session keys from browser memory.
+        </p>
+
+        <div className="pt-2">
+          <Button
+            size="md"
+            variant="danger"
+            onClick={disconnectWallet}
+            icon={<LogOut className="w-4 h-4" />}
+          >
+            Disconnect wallet & clear session
           </Button>
-        )}
-      </div>
+        </div>
+      </GlassCard>
     </div>
   );
 }

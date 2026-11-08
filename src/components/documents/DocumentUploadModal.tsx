@@ -8,10 +8,13 @@ import {
   X,
   CheckCircle2,
   AlertCircle,
-  ShieldCheck,
   Loader2,
+  FileCode,
 } from "lucide-react";
 import { Button } from "../ui/Button";
+import { GlassCard } from "../ui/GlassCard";
+import { SecurityBadge } from "../ui/Badge";
+import { VaultScene } from "../vault/VaultScene";
 import { useWallet } from "@/context/WalletContext";
 import {
   generateDataEncryptionKey,
@@ -37,8 +40,9 @@ export function DocumentUploadModal({
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [category, setCategory] = useState("Financials");
-  const [statusStep, setStatusStep] = useState<string | null>(null);
-  const [progressPercent, setProgressPercent] = useState(0);
+  const [currentStage, setCurrentStage] = useState<
+    "IDLE" | "ENCRYPTING" | "UPLOADING_CIPHERTEXT" | "REGISTERING_COMMITMENT" | "COMPLETE"
+  >("IDLE");
   const [uploading, setUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -65,33 +69,23 @@ export function DocumentUploadModal({
 
     setUploading(true);
     setErrorMsg(null);
-    setProgressPercent(10);
+    setCurrentStage("ENCRYPTING");
 
     try {
-      // Step 1: Read plaintext locally in browser memory
-      setStatusStep("Reading document locally into browser memory...");
+      // Stage 1: Encrypting in browser memory
       const fileBuffer = await selectedFile.arrayBuffer();
       const plaintextBytes = new Uint8Array(fileBuffer);
-      setProgressPercent(30);
-
-      // Step 2: Generate unique AES-256-GCM DEK & Encrypt in Browser
-      setStatusStep("Encrypting file locally with AES-256-GCM...");
       const dek = generateDataEncryptionKey();
       const encrypted = await encryptDocumentBytes(plaintextBytes, dek);
-      setProgressPercent(60);
 
-      // Step 3: Wrap DEK for Owner and each authorized participant
-      setStatusStep("Constructing X25519 key envelopes for authorized participants...");
+      // Key envelopes for authorized recipients
       const keyEnvelopes = [];
-
-      // Owner key envelope
       const ownerEnvelope = await createKeyEnvelope(dek, userKeyPair.publicKeyHex);
       keyEnvelopes.push({
         recipientAccountId: accountId,
         envelope: ownerEnvelope,
       });
 
-      // Participant envelopes
       for (const p of participantAccounts) {
         if (p.nearAccountId !== accountId && p.encryptionPublicKey) {
           const pEnvelope = await createKeyEnvelope(dek, p.encryptionPublicKey);
@@ -101,10 +95,9 @@ export function DocumentUploadModal({
           });
         }
       }
-      setProgressPercent(80);
 
-      // Step 4: Register Document Record (stores only ciphertext hash & envelopes)
-      setStatusStep("Registering document commitment...");
+      // Stage 2: Registering commitment
+      setCurrentStage("REGISTERING_COMMITMENT");
       const regRes = await fetch("/api/documents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -125,8 +118,8 @@ export function DocumentUploadModal({
         throw new Error(regData.error || "Failed to register document commitment");
       }
 
-      // Step 5: Upload Ciphertext Blob (Only encrypted bytes transmitted)
-      setStatusStep("Uploading encrypted ciphertext blob...");
+      // Stage 3: Uploading Ciphertext Blob only
+      setCurrentStage("UPLOADING_CIPHERTEXT");
       const blobRes = await fetch(`/api/documents/${regData.document.id}/blob`, {
         method: "POST",
         headers: {
@@ -140,55 +133,71 @@ export function DocumentUploadModal({
         throw new Error(blobData.error || "Failed to upload ciphertext blob");
       }
 
-      setProgressPercent(100);
-      setStatusStep("Upload complete! Document secured.");
-
+      setCurrentStage("COMPLETE");
       setTimeout(() => {
         onSuccess();
         onClose();
-      }, 800);
+      }, 700);
     } catch (err) {
-      console.error("Upload error:", err);
-      setErrorMsg((err as Error).message);
+      console.error("Document upload error:", err);
+      setErrorMsg((err as Error).message || "Document encryption or upload failed.");
+      setCurrentStage("IDLE");
     } finally {
       setUploading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-150">
-      <div className="w-full max-w-lg rounded-3xl glass-panel-elevated border border-border shadow-glass-elevated p-6 space-y-5">
-        {/* Modal Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-border/50">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-              <Lock className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-foreground text-sm">Secure Document Upload</h3>
-              <p className="text-xs text-muted-foreground">Client-side AES-256-GCM authenticated encryption</p>
-            </div>
-          </div>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="upload-modal-title"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-sm"
+    >
+      <GlassCard
+        radius="3xl"
+        className="w-full max-w-lg p-6 sm:p-8 space-y-6 bg-solid border-line shadow-2xl relative"
+      >
+        {/* Close Button */}
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={uploading}
+          className="absolute top-5 right-5 p-2 rounded-xl text-muted hover:text-ink hover:bg-line/20 transition-colors touch-target flex items-center justify-center"
+          aria-label="Close modal"
+        >
+          <X className="w-5 h-5" aria-hidden="true" />
+        </button>
 
-          <button
-            onClick={onClose}
-            disabled={uploading}
-            className="p-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+        {/* Modal Header */}
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-accent/10 text-accent flex items-center justify-center shrink-0">
+            <Lock className="w-6 h-6" aria-hidden="true" />
+          </div>
+          <div>
+            <h2 id="upload-modal-title" className="text-lg font-bold text-ink">
+              Upload and encrypt document
+            </h2>
+            <p className="text-xs text-muted">
+              Client-side AES-256-GCM encryption before network transmission.
+            </p>
+          </div>
         </div>
 
-        {/* Drag and Drop Box */}
+        {/* Drag and Drop Zone */}
         <div
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleFileDrop}
           onClick={() => fileInputRef.current?.click()}
-          className="p-8 border-2 border-dashed border-border/80 hover:border-primary/50 rounded-2xl glass-panel text-center cursor-pointer transition-all space-y-3"
+          className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-colors ${
+            selectedFile
+              ? "border-accent bg-accent/5"
+              : "border-line hover:border-accent/50 bg-line/5"
+          }`}
         >
           <input
-            type="file"
             ref={fileInputRef}
+            type="file"
             className="hidden"
             onChange={(e) => {
               if (e.target.files && e.target.files[0]) {
@@ -197,91 +206,122 @@ export function DocumentUploadModal({
             }}
           />
 
-          <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto">
-            {selectedFile ? <FileText className="w-6 h-6" /> : <Upload className="w-6 h-6" />}
-          </div>
+          <div className="flex flex-col items-center justify-center space-y-2">
+            <div className="w-10 h-10 rounded-full bg-accent/10 text-accent flex items-center justify-center">
+              <Upload className="w-5 h-5" aria-hidden="true" />
+            </div>
 
-          <div>
-            <p className="text-sm font-semibold text-foreground">
-              {selectedFile ? selectedFile.name : "Click or drag documents to encrypt"}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {selectedFile
-                ? `${(selectedFile.size / 1024).toFixed(1)} KB — ready to encrypt`
-                : "PDF, TXT, DOCX, or JSON up to 50MB"}
-            </p>
+            {selectedFile ? (
+              <div className="space-y-0.5">
+                <p className="text-sm font-semibold text-ink truncate max-w-xs">{selectedFile.name}</p>
+                <p className="text-xs text-muted font-mono">
+                  {(selectedFile.size / 1024).toFixed(1)} KB
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <p className="text-xs sm:text-sm font-medium text-ink">
+                  Your files are encrypted in your browser before upload.
+                </p>
+                <p className="text-[11px] text-muted">
+                  Click to browse or drag and drop a PDF or text document.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Category Selector */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-foreground">Document Category</label>
-          <div className="grid grid-cols-3 gap-2">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setCategory(cat)}
-                className={`text-xs py-2 px-3 rounded-xl border transition-all text-center ${
-                  category === cat
-                    ? "bg-primary text-primary-foreground border-primary font-medium shadow-sm shadow-primary/20"
-                    : "glass-panel border-border/70 text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {cat}
-              </button>
+          <label htmlFor="doc-category" className="text-xs font-semibold text-ink">
+            Document category
+          </label>
+          <select
+            id="doc-category"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            disabled={uploading}
+            className="w-full px-3.5 py-2.5 rounded-xl glass border border-line text-xs sm:text-sm text-ink focus:outline-none focus:ring-[3px] focus:ring-info min-h-[44px]"
+          >
+            {categories.map((c) => (
+              <option key={c} value={c} className="bg-solid text-ink">
+                {c}
+              </option>
             ))}
-          </div>
+          </select>
         </div>
 
-        {/* Privacy Invariant Banner */}
-        <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-700 dark:text-emerald-300 flex items-start gap-2.5">
-          <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-500 mt-0.5" />
-          <p className="leading-relaxed text-[11px]">
-            <strong>Zero Plaintext Exposure:</strong> Files are encrypted locally using random AES-256 keys before upload. Only encrypted ciphertext blobs are ever transmitted to storage.
-          </p>
-        </div>
-
-        {/* Status / Error Messages */}
-        {statusStep && (
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs text-primary font-medium">
-              <span>{statusStep}</span>
-              <span>{progressPercent}%</span>
+        {/* Three Separate Stages */}
+        {uploading && (
+          <div className="space-y-3 p-4 rounded-2xl glass border border-line bg-line/5">
+            <div className="flex items-center justify-between text-xs font-medium text-ink">
+              <span>Security pipeline</span>
+              <VaultScene state="encrypting" size="inline" className="h-10 w-10" />
             </div>
-            <div className="w-full h-1.5 rounded-full bg-border overflow-hidden">
-              <div
-                className="h-full bg-primary transition-all duration-300"
-                style={{ width: `${progressPercent}%` }}
-              />
+
+            <div className="space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-muted">1. Encrypting in browser</span>
+                {currentStage === "ENCRYPTING" ? (
+                  <SecurityBadge status="PENDING" label="Encrypting..." />
+                ) : (
+                  <SecurityBadge status="VERIFIED" label="Encrypted" />
+                )}
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-muted">2. Registering commitment</span>
+                {currentStage === "REGISTERING_COMMITMENT" ? (
+                  <SecurityBadge status="PENDING" label="Anchoring..." />
+                ) : currentStage === "UPLOADING_CIPHERTEXT" || currentStage === "COMPLETE" ? (
+                  <SecurityBadge status="VERIFIED" label="Anchored" />
+                ) : (
+                  <SecurityBadge status="NOT_CHECKED" label="Queued" />
+                )}
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-muted">3. Uploading ciphertext blob</span>
+                {currentStage === "UPLOADING_CIPHERTEXT" ? (
+                  <SecurityBadge status="PENDING" label="Uploading..." />
+                ) : currentStage === "COMPLETE" ? (
+                  <SecurityBadge status="VERIFIED" label="Uploaded" />
+                ) : (
+                  <SecurityBadge status="NOT_CHECKED" label="Queued" />
+                )}
+              </div>
             </div>
           </div>
         )}
 
+        {/* Error message */}
         {errorMsg && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-600 dark:text-rose-400 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{errorMsg}</span>
+          <div
+            role="alert"
+            className="p-3.5 rounded-2xl bg-bad/10 border border-bad/25 text-xs text-bad flex items-start gap-2"
+          >
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+            <p className="leading-relaxed">{errorMsg}</p>
           </div>
         )}
 
-        {/* Action Controls */}
-        <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-border/50">
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={uploading}>
-            Cancel
-          </Button>
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3 pt-2">
           <Button
+            size="md"
             variant="primary"
-            size="sm"
+            className="w-full"
             disabled={!selectedFile || uploading}
             loading={uploading}
             onClick={handleUpload}
-            icon={<Lock className="w-3.5 h-3.5" />}
           >
-            Encrypt & Upload
+            {uploading ? "Locking & uploading..." : "Lock & upload document"}
+          </Button>
+          <Button size="md" variant="outline" onClick={onClose} disabled={uploading}>
+            Cancel
           </Button>
         </div>
-      </div>
+      </GlassCard>
     </div>
   );
 }

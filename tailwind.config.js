@@ -9,87 +9,51 @@ module.exports = {
   theme: {
     container: {
       center: true,
-      padding: "2rem",
+      padding: "1.5rem",
       screens: {
         "2xl": "1400px",
       },
     },
     extend: {
       colors: {
-        border: "var(--border)",
-        input: "var(--input)",
-        ring: "var(--ring)",
-        background: "var(--background)",
-        foreground: "var(--foreground)",
-        surface: {
-          DEFAULT: "var(--surface)",
-          elevated: "var(--surface-elevated)",
-        },
-        primary: {
-          DEFAULT: "var(--primary)",
-          foreground: "var(--primary-foreground)",
-          hover: "var(--primary-hover)",
-        },
-        secondary: {
-          DEFAULT: "var(--secondary)",
-          foreground: "var(--secondary-foreground)",
-        },
+        bg: "var(--bg)",
+        bg2: "var(--bg2)",
+        solid: "var(--solid)",
+        surface: "var(--surface)",
+        ink: "var(--ink)",
+        muted: "var(--muted)",
         accent: {
           DEFAULT: "var(--accent)",
-          foreground: "var(--accent-foreground)",
+          ink: "var(--accent-ink)",
         },
-        muted: {
-          DEFAULT: "var(--muted)",
-          foreground: "var(--muted-foreground)",
-        },
-        card: {
-          DEFAULT: "var(--card)",
-          foreground: "var(--card-foreground)",
-        },
-        success: {
-          DEFAULT: "#16845B",
-          foreground: "#FFFFFF",
-        },
-        warning: {
-          DEFAULT: "#C58A25",
-          foreground: "#FFFFFF",
-        },
-        destructive: {
-          DEFAULT: "#C64747",
-          foreground: "#FFFFFF",
-        },
+        line: "var(--line)",
+        ok: "var(--ok)",
+        warn: "var(--warn)",
+        bad: "var(--bad)",
+        info: "var(--info)",
+        border: "var(--line)",
+        background: "var(--bg)",
+        foreground: "var(--ink)",
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        xl: "12px",
+        "2xl": "20px",
+        "3xl": "28px",
       },
-      backdropBlur: {
-        glass: "20px",
+      fontFamily: {
+        sans: [
+          "Geist",
+          "system-ui",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "Segoe UI",
+          "Roboto",
+          "sans-serif",
+        ],
       },
-      boxShadow: {
-        glass: "0 8px 32px 0 rgba(0, 0, 0, 0.06)",
-        "glass-elevated": "0 12px 40px 0 rgba(0, 0, 0, 0.10)",
-        "glass-dark": "0 8px 32px 0 rgba(0, 0, 0, 0.35)",
-      },
-      keyframes: {
-        "accordion-down": {
-          from: { height: "0" },
-          to: { height: "var(--radix-accordion-content-height)" },
-        },
-        "accordion-up": {
-          from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: "0" },
-        },
-        "pulse-subtle": {
-          "0%, 100%": { opacity: "1" },
-          "50%": { opacity: "0.6" },
-        },
-      },
-      animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
-        "pulse-subtle": "pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+      letterSpacing: {
+        tightest: "-0.035em",
+        tighter: "-0.025em",
       },
     },
   },

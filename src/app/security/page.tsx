@@ -14,96 +14,97 @@ import {
 } from "lucide-react";
 import { TdxVerificationCard } from "@/components/security/TdxVerificationCard";
 import { SecurityBadge } from "@/components/ui/Badge";
+import { GlassCard } from "@/components/ui/GlassCard";
 
 export default function SecurityPage() {
   const threatScenarios = [
     {
-      threat: "Compromised Object Storage Provider",
-      mechanism: "AES-256-GCM Client-Side Encryption",
-      protection: "Guaranteed Protected",
+      threat: "Compromised object storage provider",
+      mechanism: "AES-256-GCM client-side encryption",
+      protection: "Protected",
       detail:
-        "Document blobs in S3 or disk are encrypted using unique 256-bit keys generated in browser memory. Stored blobs are indistinguishable from random noise.",
+        "Document blobs are encrypted using unique 256-bit random keys generated in browser memory. Stored blobs are ciphertext only.",
     },
     {
-      threat: "Malicious Backend Operator / DB Scraping",
-      mechanism: "Zero Plaintext & Zero Private Key Storage",
-      protection: "Guaranteed Protected",
+      threat: "Malicious backend operator / DB inspection",
+      mechanism: "Zero plaintext & zero private key storage",
+      protection: "Protected",
       detail:
-        "The application database stores only encrypted key envelopes, opaque IDs, and ciphertext hashes. Private keys never leave client memory.",
+        "The application database stores only encrypted key envelopes and opaque commitment hashes. Private keys never leave client memory.",
     },
     {
-      threat: "Unauthorized Room Access / Key Interception",
-      mechanism: "X25519 Asymmetric Envelope KEM",
-      protection: "Guaranteed Protected",
+      threat: "Unauthorized room access / key interception",
+      mechanism: "X25519 asymmetric envelope KEM",
+      protection: "Protected",
       detail:
-        "Document DEKs are wrapped strictly for the X25519 public keys of explicitly authorized participants. Third parties cannot decrypt key envelopes.",
+        "Document DEKs are wrapped strictly for the X25519 public keys of explicitly authorized participants. Third parties cannot unwrap envelopes.",
     },
     {
-      threat: "Cloud Host Snooping on AI Inference",
-      mechanism: "Intel TDX Hardware-Isolated TEE Enclave",
-      protection: "Guaranteed Protected",
+      threat: "Cloud host snooping on AI inference",
+      mechanism: "Intel TDX hardware-isolated TEE enclave",
+      protection: "Protected",
       detail:
-        "Inference runs inside a Trust Domain with hardware-encrypted RAM. Cloud operators, hypervisors, and host OS cannot inspect memory during model execution.",
+        "Inference runs inside a Trust Domain with hardware-encrypted RAM. Cloud operators and hypervisors cannot inspect memory during execution.",
     },
     {
-      threat: "Forged or Tampered AI Responses",
-      mechanism: "ECDSA Response Signature Verification",
-      protection: "Guaranteed Protected",
+      threat: "Forged or tampered AI responses",
+      mechanism: "Enclave digital signature verification",
+      protection: "Protected",
       detail:
         "Enclaves digitally sign the combined hash of prompt request and response. Tampered outputs fail client verification immediately.",
     },
     {
-      threat: "Replay Attacks on Attestation or Auth",
-      mechanism: "Cryptographic Fresh Nonce Validation",
-      protection: "Guaranteed Protected",
+      threat: "Replay attacks on attestation or auth",
+      mechanism: "Cryptographic fresh nonce validation",
+      protection: "Protected",
       detail:
-        "Single-use 32-byte nonces are bound into the hardware ReportData and NEP-413 wallet challenges to prevent signature replays.",
+        "Single-use 32-byte nonces are bound into the hardware ReportData and NEP-413 wallet challenges to prevent replays.",
     },
     {
-      threat: "Authorized Participant Physical Exfiltration",
-      mechanism: "Client-Side Physical Security Boundary",
-      protection: "Out of Scope / Non-Goal",
+      threat: "Authorized participant screen capture",
+      mechanism: "Physical monitor boundary",
+      protection: "Not protected",
       detail:
-        "An authorized investor who has legitimately decrypted a file has read access on their device. ProofRoom controls key delivery, but cannot prevent optical screen captures once legitimately decrypted.",
+        "An authorized person who legitimately decrypts a document on their screen can photograph their monitor. Software cannot prevent physical photographs.",
     },
     {
-      threat: "Information Downloaded Prior to Revocation",
-      mechanism: "Future Access Revocation",
-      protection: "Explicit Boundary",
+      threat: "Information downloaded prior to revocation",
+      mechanism: "Future key delivery halted",
+      protection: "Not protected",
       detail:
-        "Revocation immediately prevents future downloads and halts key distribution for future document versions. It cannot retroactively delete local copies already saved prior to revocation.",
+        "Revocation immediately prevents future downloads and halts key distribution for future versions. It cannot delete local copies already saved.",
     },
   ];
 
   const cryptoSpecs = [
     {
-      label: "Document Encryption",
+      label: "Document encryption",
       spec: "AES-256-GCM",
       detail: "Unique 256-bit DEK per document, 96-bit random IV, 128-bit authentication tag",
     },
     {
-      label: "Key Wrapping Envelopes",
+      label: "Key wrapping envelopes",
       spec: "X25519 + HKDF-SHA256",
       detail: "RFC 8439 / ECIES-style key agreement derived with domain-separated salt & info",
     },
     {
-      label: "Confidential TEE Enclave",
+      label: "Confidential TEE enclave",
       spec: "Intel TDX via NEAR AI Cloud",
       detail: "Hardware MKTME memory encryption, verified MRTD and RTMR measurements",
     },
     {
-      label: "Response Signature",
+      label: "Response signature",
       spec: "ECDSA P-256 / Ed25519",
       detail: "Hardware enclave digital signature over sha256(request_hash || response_hash)",
     },
     {
-      label: "Identity & Signatures",
-      spec: "NEP-413 Wallet Challenges",
-      detail: "Ed25519 single-use signed authentication nonces anchored to NEAR account IDs",
+      label: "Identity & signatures",
+      spec: "NEP-413 wallet challenges",
+      detail: "Single-use signed authentication nonces anchored to NEAR account IDs",
     },
     {
-      label: "Audit Ledger",
-      spec: "NEAR Testnet Smart Contract",
+      label: "Audit ledger",
+      spec: "NEAR Testnet smart contract",
       detail: "Opaque commitments (room_commitment, document_hash, receipt_hash) on NEAR Testnet",
     },
   ];
@@ -112,93 +113,97 @@ export default function SecurityPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-12">
       {/* Page Header */}
       <div className="max-w-3xl space-y-3">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
-          <ShieldCheck className="w-3.5 h-3.5" />
-          <span>Security Architecture & Threat Model</span>
-        </div>
-        <h1 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">
-          Verifiable Privacy by Design
+        <SecurityBadge status="VERIFIED" label="Security architecture & threat model" />
+        <h1 className="hero-headline text-ink text-balance">
+          Verifiable privacy by design
         </h1>
-        <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-          ProofRoom replaces subjective platform trust with cryptographic evidence. Inspect our live Intel TDX attestation reports, threat boundaries, and formal specifications.
+        <p className="text-base sm:text-lg text-muted prose-restricted leading-relaxed">
+          ProofRoom replaces subjective platform trust with cryptographic evidence. Inspect our live
+          Intel TDX attestation reports, threat boundaries, and formal specifications.
         </p>
       </div>
 
       {/* Live Attestation Card */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <Cpu className="w-5 h-5 text-emerald-500" />
-            Live Hardware Verification Engine
+          <h2 className="text-lg font-semibold text-ink flex items-center gap-2">
+            <Cpu className="w-5 h-5 text-accent" aria-hidden="true" />
+            <span>Live hardware verification engine</span>
           </h2>
-          <span className="text-xs text-muted-foreground font-mono">NEAR AI Cloud / Intel TDX</span>
+          <span className="text-xs text-muted font-mono">NEAR AI Cloud / Intel TDX</span>
         </div>
         <TdxVerificationCard />
       </div>
 
-      {/* Threat Model Table */}
+      {/* Threat Model Table / Cards */}
       <div className="space-y-4 pt-4">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold text-foreground">Threat Model Matrix</h2>
-          <p className="text-xs text-muted-foreground">
-            Explicit technical classification of what ProofRoom cryptographically guarantees and explicit out-of-scope risks.
+          <h2 className="text-lg font-semibold text-ink">Threat model matrix</h2>
+          <p className="text-xs text-muted">
+            Explicit technical classification of what ProofRoom cryptographically guarantees and
+            explicit boundaries.
           </p>
         </div>
 
-        <div className="rounded-3xl glass-panel-elevated border border-border overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-border bg-foreground/[0.02] text-muted-foreground uppercase tracking-wider font-semibold">
-                  <th className="p-4">Threat Vector</th>
-                  <th className="p-4">Mitigating Control</th>
-                  <th className="p-4">Protection Status</th>
-                  <th className="p-4">Architectural Mechanism</th>
+        {/* Desktop Table */}
+        <div className="hidden md:block rounded-3xl glass border border-line overflow-hidden bg-solid/80">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-line bg-line/10">
+                <th className="p-4 font-semibold text-ink">Threat scenario</th>
+                <th className="p-4 font-semibold text-ink">Mitigation mechanism</th>
+                <th className="p-4 font-semibold text-ink">Guarantee</th>
+                <th className="p-4 font-semibold text-ink">Engineering detail</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line/60">
+              {threatScenarios.map((item, idx) => (
+                <tr key={idx} className="hover:bg-line/5 transition-colors">
+                  <td className="p-4 font-medium text-ink align-top">{item.threat}</td>
+                  <td className="p-4 text-muted font-mono align-top">{item.mechanism}</td>
+                  <td className="p-4 align-top">
+                    <SecurityBadge
+                      status={item.protection === "Protected" ? "VERIFIED" : "UNAVAILABLE"}
+                      label={item.protection}
+                    />
+                  </td>
+                  <td className="p-4 text-muted leading-relaxed align-top">{item.detail}</td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-border/50">
-                {threatScenarios.map((row, idx) => (
-                  <tr key={idx} className="hover:bg-foreground/[0.015] transition-colors">
-                    <td className="p-4 font-semibold text-foreground align-top max-w-[200px]">
-                      {row.threat}
-                    </td>
-                    <td className="p-4 font-mono text-primary align-top max-w-[220px]">
-                      {row.mechanism}
-                    </td>
-                    <td className="p-4 align-top whitespace-nowrap">
-                      <span
-                        className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
-                          row.protection.includes("Guaranteed")
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                            : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                        }`}
-                      >
-                        {row.protection}
-                      </span>
-                    </td>
-                    <td className="p-4 text-muted-foreground text-[11px] leading-relaxed align-top">
-                      {row.detail}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile Cards */}
+        <div className="md:hidden space-y-3">
+          {threatScenarios.map((item, idx) => (
+            <GlassCard key={idx} radius="2xl" className="p-4 border-line space-y-2 text-xs">
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-semibold text-ink text-sm">{item.threat}</span>
+                <SecurityBadge
+                  status={item.protection === "Protected" ? "VERIFIED" : "UNAVAILABLE"}
+                  label={item.protection}
+                />
+              </div>
+              <p className="font-mono text-accent text-[11px]">{item.mechanism}</p>
+              <p className="text-muted text-xs leading-relaxed">{item.detail}</p>
+            </GlassCard>
+          ))}
         </div>
       </div>
 
-      {/* Cryptographic Specifications */}
+      {/* Cryptographic Specifications Grid */}
       <div className="space-y-4 pt-4">
-        <h2 className="text-lg font-semibold text-foreground">Cryptographic Standards</h2>
+        <h2 className="text-lg font-semibold text-ink">Cryptographic specifications</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {cryptoSpecs.map((spec, idx) => (
-            <div key={idx} className="p-4 rounded-2xl glass-panel border border-border space-y-1.5 text-xs">
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+            <GlassCard key={idx} radius="2xl" className="p-5 border-line space-y-2">
+              <span className="text-[11px] font-semibold text-muted uppercase tracking-wider block">
                 {spec.label}
               </span>
-              <p className="font-mono font-bold text-foreground text-sm">{spec.spec}</p>
-              <p className="text-muted-foreground text-[11px] leading-relaxed">{spec.detail}</p>
-            </div>
+              <p className="text-base font-bold text-ink font-mono">{spec.spec}</p>
+              <p className="text-xs text-muted leading-relaxed">{spec.detail}</p>
+            </GlassCard>
           ))}
         </div>
       </div>
