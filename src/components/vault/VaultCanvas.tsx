@@ -2,7 +2,6 @@
 
 import React, { useRef, useMemo, useEffect, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { VaultState } from "@/hooks/useVaultState";
 
@@ -10,393 +9,311 @@ interface VaultSceneContentProps {
   state: VaultState;
   reducedMotion: boolean;
   isMobile: boolean;
+  dragRot: number;
 }
 
-function VaultModel({ state, reducedMotion, isMobile }: VaultSceneContentProps) {
-  const vaultGroupRef = useRef<THREE.Group>(null);
+function VaultModel({ state, reducedMotion, isMobile, dragRot }: VaultSceneContentProps) {
+  const groupRef = useRef<THREE.Group>(null);
+  const vaultMeshRef = useRef<THREE.Mesh>(null);
+  const edgesRef = useRef<THREE.LineSegments>(null);
   const coreRef = useRef<THREE.Mesh>(null);
-  const scanRingRef = useRef<THREE.Mesh>(null);
-  const receiptBoxRef = useRef<THREE.Mesh>(null);
-  const documentsGroupRef = useRef<THREE.Group>(null);
-  const pulseLeftRef = useRef<THREE.Mesh>(null);
-  const pulseRightRef = useRef<THREE.Mesh>(null);
+  const ringRef = useRef<THREE.Mesh>(null);
+  const scanRef = useRef<THREE.Mesh>(null);
+  const blockRef = useRef<THREE.Mesh>(null);
 
-  // Targets for smooth lerp transitions (approx 0.4s)
-  const targetDocRadius = useRef(4.2);
-  const currentDocRadius = useRef(4.2);
+  const docsRef = useRef<THREE.Mesh[]>([]);
+  const nodesRef = useRef<THREE.Mesh[]>([]);
+  const linesRef = useRef<THREE.Line[]>([]);
+  const pulsesRef = useRef<THREE.Mesh[]>([]);
 
-  const targetDocScale = useRef(1);
-  const currentDocScale = useRef(1);
+  // Interpolated state variables matching prototype
+  const st8 = useRef({
+    rad: 4.2,
+    lock: 0,
+    scan: 0,
+    blk: 0,
+    shake: 0,
+  });
 
-  const targetReceiptScale = useRef(0);
-  const currentReceiptScale = useRef(0);
+  const cBad = useMemo(() => new THREE.Color("#B63A3A"), []);
+  const cWarn = useMemo(() => new THREE.Color("#C98A1A"), []);
+  const cOk = useMemo(() => new THREE.Color("#0F7A52"), []);
+  const cAcc = useMemo(() => new THREE.Color("#0F5C47"), []);
+  const cPaper = useMemo(() => new THREE.Color("#FFFCF4"), []);
+  const cInk = useMemo(() => new THREE.Color("#16211C"), []);
+  const cMuted = useMemo(() => new THREE.Color("#5E6B63"), []);
+  const cBlue = useMemo(() => new THREE.Color("#3E63D9"), []);
 
-  const scanY = useRef(0);
-  const scanDir = useRef(1);
+  // Geometry allocations
+  const vaultGeo = useMemo(() => new THREE.BoxGeometry(2.2, 2.2, 2.2), []);
+  const edgesGeo = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(2.6, 2.6, 2.6)), []);
+  const coreGeo = useMemo(() => new THREE.IcosahedronGeometry(0.55, 1), []);
+  const ringGeo = useMemo(() => new THREE.TorusGeometry(3.7, 0.025, 8, 160), []);
+  const scanGeo = useMemo(() => new THREE.TorusGeometry(2.1, 0.05, 8, 96), []);
+  const docGeo = useMemo(() => new THREE.BoxGeometry(0.95, 1.25, 0.06), []);
+  const nodeGeo = useMemo(() => new THREE.SphereGeometry(0.38, 24, 24), []);
+  const pulseGeo = useMemo(() => new THREE.SphereGeometry(0.09, 12, 12), []);
+  const blockGeo = useMemo(() => new THREE.BoxGeometry(1, 0.55, 1), []);
 
-  // Colors based on state
-  const colors = useMemo(() => {
-    return {
-      vaultDefault: new THREE.Color("#0F5C47"),
-      vaultFailed: new THREE.Color("#B63A3A"),
-      coreIdle: new THREE.Color("#5FCFA6"),
-      coreVerifying: new THREE.Color("#3E63D9"),
-      coreAnchored: new THREE.Color("#E3B04F"),
-      coreFailed: new THREE.Color("#F08080"),
-      docIdle: new THREE.Color("#FFFCF4"),
-      docEncrypting: new THREE.Color("#0F7A52"),
-      docFailed: new THREE.Color("#B63A3A"),
-      wireIdle: new THREE.Color("#16211C"),
-      wireFailed: new THREE.Color("#B63A3A"),
-      lineMuted: new THREE.Color("#5E6B63"),
-      lineActive: new THREE.Color("#0F7A52"),
-      lineVerifying: new THREE.Color("#3E63D9"),
-      lineFailed: new THREE.Color("#B63A3A"),
-    };
-  }, []);
-
-  // Update target values whenever state changes
-  useEffect(() => {
-    switch (state) {
-      case "idle":
-        targetDocRadius.current = 4.2;
-        targetDocScale.current = 1.0;
-        targetReceiptScale.current = 0;
-        break;
-      case "encrypting":
-        targetDocRadius.current = 1.9;
-        targetDocScale.current = 0.55;
-        targetReceiptScale.current = 0;
-        break;
-      case "verifying":
-        targetDocRadius.current = 4.0;
-        targetDocScale.current = 0.95;
-        targetReceiptScale.current = 0;
-        break;
-      case "anchored":
-        targetDocRadius.current = 4.2;
-        targetDocScale.current = 1.0;
-        targetReceiptScale.current = 1.0;
-        break;
-      case "failed":
-        targetDocRadius.current = 5.2;
-        targetDocScale.current = 0.85;
-        targetReceiptScale.current = 0;
-        break;
-    }
-  }, [state]);
-
-  // Document geometries (7 sheets)
-  const docAngles = useMemo(() => {
-    return [0, 0.89, 1.79, 2.69, 3.59, 4.48, 5.38];
-  }, []);
-
-  // Reusable materials
-  const vaultMaterial = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: state === "failed" ? colors.vaultFailed : colors.vaultDefault,
-        transparent: true,
-        opacity: 0.85,
-        roughness: 0.25,
-        metalness: 0.2,
-      }),
-    [state, colors]
+  // Connection line points
+  const leftLineGeo = useMemo(
+    () => new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-5.2, 0.4, 0), new THREE.Vector3(0, 0, 0)]),
+    []
   );
-
-  const wireframeMaterial = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        color: state === "failed" ? colors.wireFailed : colors.wireIdle,
-        wireframe: true,
-      }),
-    [state, colors]
-  );
-
-  const coreMaterial = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color:
-          state === "failed"
-            ? colors.coreFailed
-            : state === "verifying"
-            ? colors.coreVerifying
-            : state === "anchored"
-            ? colors.coreAnchored
-            : colors.coreIdle,
-        emissive:
-          state === "failed"
-            ? colors.coreFailed
-            : state === "verifying"
-            ? colors.coreVerifying
-            : state === "anchored"
-            ? colors.coreAnchored
-            : colors.coreIdle,
-        emissiveIntensity: 0.7,
-        roughness: 0.3,
-      }),
-    [state, colors]
-  );
-
-  const docMaterial = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color:
-          state === "failed"
-            ? colors.docFailed
-            : state === "encrypting"
-            ? colors.docEncrypting
-            : colors.docIdle,
-        roughness: 0.4,
-      }),
-    [state, colors]
-  );
-
-  const receiptMaterial = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color("#A86A10"),
-        emissive: new THREE.Color("#E3B04F"),
-        emissiveIntensity: 0.4,
-        roughness: 0.3,
-      }),
+  const rightLineGeo = useMemo(
+    () => new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(5.2, 0.4, 0), new THREE.Vector3(0, 0, 0)]),
     []
   );
 
   useFrame((_, delta) => {
-    const lerpFactor = reducedMotion ? 1 : Math.min(delta * 7.5, 1);
+    const dt = Math.min(delta, 0.05);
+    const t = performance.now() * 0.001;
+    const k = reducedMotion ? 1 : 1 - Math.pow(0.001, dt);
 
-    // Lerp radius and scales
-    currentDocRadius.current = THREE.MathUtils.lerp(
-      currentDocRadius.current,
-      targetDocRadius.current,
-      lerpFactor
-    );
-    currentDocScale.current = THREE.MathUtils.lerp(
-      currentDocScale.current,
-      targetDocScale.current,
-      lerpFactor
-    );
-    currentReceiptScale.current = THREE.MathUtils.lerp(
-      currentReceiptScale.current,
-      targetReceiptScale.current,
-      lerpFactor
-    );
+    let tgtRad = 4.2;
+    let tgtLock = 0;
+    let tgtScan = 0;
+    let tgtBlk = 0;
+    let shake = 0;
+    let lineCol = cMuted;
 
-    // Rotate vault slightly unless reducedMotion
-    if (vaultGroupRef.current && !reducedMotion) {
-      if (state === "failed") {
-        // Vault shakes on failure to signal "nothing was sent"
-        vaultGroupRef.current.position.x = (Math.random() - 0.5) * 0.08;
-        vaultGroupRef.current.position.y = (Math.random() - 0.5) * 0.08;
-      } else {
-        vaultGroupRef.current.position.set(0, 0, 0);
-        vaultGroupRef.current.rotation.y += delta * 0.25;
+    if (state === "encrypting") {
+      tgtRad = 1.9;
+      tgtLock = 1;
+    } else if (state === "verifying") {
+      tgtRad = 3.6;
+      tgtScan = 1;
+      lineCol = cBlue;
+    } else if (state === "anchored") {
+      tgtRad = 3.8;
+      tgtBlk = 1;
+      lineCol = cOk;
+    } else if (state === "failed") {
+      tgtRad = 5.2;
+      shake = 1;
+      lineCol = cBad;
+    }
+
+    // Prototype lerp function: L(a, b, k) = a + (b - a) * k
+    st8.current.rad += (tgtRad - st8.current.rad) * k;
+    st8.current.lock += (tgtLock - st8.current.lock) * k;
+    st8.current.scan += (tgtScan - st8.current.scan) * k;
+    st8.current.blk += (tgtBlk - st8.current.blk) * k;
+    st8.current.shake += (shake - st8.current.shake) * k;
+
+    // Group orientation
+    if (groupRef.current) {
+      groupRef.current.rotation.x = 0.18;
+      groupRef.current.rotation.y = reducedMotion ? 0.5 : dragRot;
+    }
+
+    // Vault color & shake
+    if (vaultMeshRef.current) {
+      const mat = vaultMeshRef.current.material as THREE.MeshStandardMaterial;
+      mat.color.set(state === "failed" ? cBad : cAcc);
+      vaultMeshRef.current.position.x = st8.current.shake * Math.sin(t * 50) * 0.06;
+    }
+
+    // Core pulsing & emissive color
+    if (coreRef.current) {
+      const mat = coreRef.current.material as THREE.MeshStandardMaterial;
+      coreRef.current.rotation.y = t;
+      mat.emissive.set(
+        state === "failed"
+          ? cBad
+          : state === "verifying"
+          ? cBlue
+          : state === "anchored"
+          ? cWarn
+          : 0xf7f1e3
+      );
+      if (!reducedMotion) {
+        const s = 1 + 0.08 * Math.sin(t * 3);
+        coreRef.current.scale.set(s, s, s);
       }
     }
 
-    // Core pulsing
-    if (coreRef.current && !reducedMotion) {
-      const pulse = 1 + Math.sin(Date.now() * 0.004) * 0.12;
-      coreRef.current.scale.set(pulse, pulse, pulse);
+    // Outer ring color
+    if (ringRef.current) {
+      const mat = ringRef.current.material as THREE.MeshBasicMaterial;
+      mat.color.copy(state === "failed" ? cBad : cInk);
     }
 
-    // Orbiting documents
-    if (documentsGroupRef.current && !reducedMotion) {
-      documentsGroupRef.current.rotation.y +=
-        state === "encrypting" ? delta * 0.8 : delta * 0.25;
+    // Documents orbit & contraction
+    docsRef.current.forEach((d, i) => {
+      if (!d) return;
+      const baseAngle = (i / 7) * Math.PI * 2;
+      const a = baseAngle + t * (reducedMotion ? 0 : 0.35);
+      const r = st8.current.rad;
+      d.position.set(
+        Math.cos(a) * r,
+        Math.sin(t * 0.8 + i) * 0.35 + (i % 2 ? 0.9 : -0.9),
+        Math.sin(a) * r
+      );
+      d.lookAt(0, d.position.y, 0);
+
+      const mat = d.material as THREE.MeshStandardMaterial;
+      mat.color.copy(cPaper.clone().lerp(cOk, st8.current.lock * 0.75));
+      const s = 1 - st8.current.lock * 0.35;
+      d.scale.set(s, s, s);
+    });
+
+    // Scan ring sweeping
+    if (scanRef.current) {
+      const mat = scanRef.current.material as THREE.MeshBasicMaterial;
+      mat.opacity = st8.current.scan * 0.9;
+      scanRef.current.position.y = Math.sin(t * 2.2) * 1.5 * st8.current.scan;
     }
 
-    // Update document mesh positions
-    if (documentsGroupRef.current) {
-      documentsGroupRef.current.children.forEach((child, index) => {
-        const angle = docAngles[index];
-        const r = currentDocRadius.current;
-        child.position.x = Math.cos(angle) * r;
-        child.position.z = Math.sin(angle) * r;
-        const s = currentDocScale.current;
-        child.scale.set(s, s, s);
-      });
-    }
+    // Nodes (Participants)
+    nodesRef.current.forEach((n) => {
+      if (!n) return;
+      const mat = n.material as THREE.MeshStandardMaterial;
+      mat.color.set(state === "failed" ? cBad : cBlue);
+    });
 
-    // Scan ring during verification
-    if (scanRingRef.current) {
-      if (state === "verifying") {
-        scanRingRef.current.visible = true;
-        if (!reducedMotion) {
-          scanY.current += delta * 2.2 * scanDir.current;
-          if (scanY.current > 1.4) scanDir.current = -1;
-          if (scanY.current < -1.4) scanDir.current = 1;
-          scanRingRef.current.position.y = scanY.current;
-        }
-      } else {
-        scanRingRef.current.visible = false;
+    // Lines
+    linesRef.current.forEach((l) => {
+      if (!l) return;
+      const mat = l.material as THREE.LineBasicMaterial;
+      mat.color.copy(lineCol);
+    });
+
+    // Pulses
+    pulsesRef.current.forEach((p, i) => {
+      if (!p) return;
+      const on = state === "verifying" || state === "anchored" || state === "encrypting";
+      p.visible = on && !reducedMotion;
+      if (on && !reducedMotion) {
+        const s = i % 2 ? 1 : -1;
+        const u = (t * 0.5 + i * 0.25) % 1;
+        p.position.set(s * 5.2 * (state === "encrypting" ? 1 - u : u), 0.4 * (1 - u), 0);
+        const mat = p.material as THREE.MeshBasicMaterial;
+        mat.color.set(state === "encrypting" ? cOk : state === "anchored" ? cWarn : cBlue);
       }
-    }
+    });
 
-    // Receipt block scale & rise
-    if (receiptBoxRef.current) {
-      const s = currentReceiptScale.current;
-      receiptBoxRef.current.scale.set(s, s, s);
-      receiptBoxRef.current.position.y = 1.9 + s * 0.6;
-      if (!reducedMotion && s > 0.01) {
-        receiptBoxRef.current.rotation.y += delta * 1.2;
-      }
-    }
-
-    // Pulse traveling along lines
-    if (!reducedMotion) {
-      const t = (Date.now() * 0.002) % 1;
-      if (pulseLeftRef.current) {
-        // Participant at -4.5, vault edge at -1.1
-        pulseLeftRef.current.position.x = -4.5 + t * 3.4;
-      }
-      if (pulseRightRef.current) {
-        pulseRightRef.current.position.x = 4.5 - t * 3.4;
-      }
+    // Anchored receipt block
+    if (blockRef.current) {
+      const blkScale = Math.max(0.001, st8.current.blk);
+      blockRef.current.scale.set(blkScale, blkScale, blkScale);
+      blockRef.current.rotation.y = t * 0.8;
+      blockRef.current.position.y = 3.2 + Math.sin(t * 2) * 0.08;
     }
   });
 
-  const segments = isMobile ? 16 : 32;
-
-  const leftLinePoints = useMemo(() => [new THREE.Vector3(-4.5, 0, 0), new THREE.Vector3(-1.1, 0, 0)], []);
-  const rightLinePoints = useMemo(() => [new THREE.Vector3(4.5, 0, 0), new THREE.Vector3(1.1, 0, 0)], []);
-
-  const leftLineObj = useMemo(
-    () =>
-      new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints(leftLinePoints),
-        new THREE.LineBasicMaterial({
-          color:
-            state === "failed"
-              ? colors.lineFailed
-              : state === "anchored"
-              ? colors.lineActive
-              : state === "verifying"
-              ? colors.lineVerifying
-              : colors.lineMuted,
-        })
-      ),
-    [leftLinePoints, state, colors]
-  );
-
-  const rightLineObj = useMemo(
-    () =>
-      new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints(rightLinePoints),
-        new THREE.LineBasicMaterial({
-          color:
-            state === "failed"
-              ? colors.lineFailed
-              : state === "anchored"
-              ? colors.lineActive
-              : state === "verifying"
-              ? colors.lineVerifying
-              : colors.lineMuted,
-        })
-      ),
-    [rightLinePoints, state, colors]
-  );
-
   return (
-    <group>
-      {/* Central Vault Cube */}
-      <group ref={vaultGroupRef}>
-        {/* Solid inner cube */}
-        <mesh material={vaultMaterial}>
-          <boxGeometry args={[2.2, 2.2, 2.2]} />
-        </mesh>
-        {/* Wireframe outer boundary */}
-        <mesh material={wireframeMaterial}>
-          <boxGeometry args={[2.24, 2.24, 2.24]} />
-        </mesh>
-        {/* Glowing core icosahedron */}
-        <mesh ref={coreRef} material={coreMaterial}>
-          <icosahedronGeometry args={[0.55, 1]} />
-        </mesh>
-      </group>
-
-      {/* Orbiting Documents (7 sheets) */}
-      <group ref={documentsGroupRef}>
-        {docAngles.map((_, i) => (
-          <mesh key={i} material={docMaterial} rotation={[0, -docAngles[i] + Math.PI / 2, 0]}>
-            <boxGeometry args={[0.95, 1.25, 0.06]} />
-          </mesh>
-        ))}
-      </group>
-
-      {/* Outer Ring Torus */}
-      <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[4.8, 0.02, 8, segments]} />
-        <meshBasicMaterial
-          color={
-            state === "failed"
-              ? colors.lineFailed
-              : state === "anchored"
-              ? colors.coreAnchored
-              : colors.lineMuted
-          }
-          transparent
-          opacity={0.35}
-        />
-      </mesh>
-
-      {/* Verification Scan Ring */}
-      <mesh ref={scanRingRef} rotation={[Math.PI / 2, 0, 0]} visible={false}>
-        <torusGeometry args={[2.5, 0.045, 8, segments]} />
+    <group ref={groupRef}>
+      {/* Central Vault */}
+      <mesh ref={vaultMeshRef} geometry={vaultGeo}>
         <meshStandardMaterial
-          color={colors.coreVerifying}
-          emissive={colors.coreVerifying}
-          emissiveIntensity={0.8}
+          color={0x0f5c47}
+          roughness={0.35}
+          metalness={0.25}
+          transparent
+          opacity={0.92}
         />
       </mesh>
 
-      {/* Anchored Receipt Box */}
-      <mesh ref={receiptBoxRef} material={receiptMaterial} position={[0, 2.5, 0]} scale={0}>
-        <boxGeometry args={[0.7, 0.7, 0.7]} />
+      {/* Outer Wireframe Edges */}
+      <primitive
+        object={
+          new THREE.LineSegments(
+            edgesGeo,
+            new THREE.LineBasicMaterial({ color: 0x16211c })
+          )
+        }
+      />
+
+      {/* Core Glowing Icosahedron */}
+      <mesh ref={coreRef} geometry={coreGeo}>
+        <meshStandardMaterial
+          color={0xf7f1e3}
+          emissive={0xf7f1e3}
+          emissiveIntensity={0.5}
+          roughness={0.4}
+        />
       </mesh>
 
-      {/* Left Participant (Founder / Wallet) */}
-      <group position={[-4.5, 0, 0]}>
-        <mesh>
-          <sphereGeometry args={[0.42, segments, segments]} />
-          <meshStandardMaterial color={new THREE.Color("#3E63D9")} roughness={0.3} />
+      {/* Orbit Ring */}
+      <mesh ref={ringRef} geometry={ringGeo} rotation={[Math.PI / 2, 0, 0]}>
+        <meshBasicMaterial color={0x16211c} />
+      </mesh>
+
+      {/* Scan Ring */}
+      <mesh ref={scanRef} geometry={scanGeo} rotation={[Math.PI / 2, 0, 0]}>
+        <meshBasicMaterial color={0x3e63d9} transparent opacity={0} />
+      </mesh>
+
+      {/* 7 Orbiting Document Sheets */}
+      {Array.from({ length: 7 }).map((_, i) => (
+        <mesh
+          key={i}
+          ref={(el) => {
+            if (el) docsRef.current[i] = el;
+          }}
+          geometry={docGeo}
+        >
+          <meshStandardMaterial color={0xfffcf4} roughness={0.6} />
         </mesh>
-      </group>
+      ))}
 
-      {/* Left Connection Line */}
-      <primitive object={leftLineObj} />
-
-      {/* Left Traveling Pulse */}
-      {(state === "encrypting" || state === "verifying") && !reducedMotion && (
-        <mesh ref={pulseLeftRef} position={[-4.5, 0, 0]}>
-          <sphereGeometry args={[0.12, 8, 8]} />
-          <meshBasicMaterial
-            color={state === "verifying" ? colors.coreVerifying : colors.lineActive}
-          />
+      {/* Participant Nodes (Left and Right) */}
+      {[-1, 1].map((s, idx) => (
+        <mesh
+          key={idx}
+          ref={(el) => {
+            if (el) nodesRef.current[idx] = el;
+          }}
+          geometry={nodeGeo}
+          position={[s * 5.2, 0.4, 0]}
+        >
+          <meshStandardMaterial color={0x3e63d9} roughness={0.4} />
         </mesh>
-      )}
+      ))}
 
-      {/* Right Participant (Investor / Verifier) */}
-      <group position={[4.5, 0, 0]}>
-        <mesh>
-          <sphereGeometry args={[0.42, segments, segments]} />
-          <meshStandardMaterial color={new THREE.Color("#3E63D9")} roughness={0.3} />
+      {/* Connection Lines */}
+      <primitive
+        object={
+          new THREE.Line(
+            leftLineGeo,
+            new THREE.LineBasicMaterial({ color: 0x5e6b63 })
+          )
+        }
+        ref={(el: THREE.Line) => {
+          if (el) linesRef.current[0] = el;
+        }}
+      />
+      <primitive
+        object={
+          new THREE.Line(
+            rightLineGeo,
+            new THREE.LineBasicMaterial({ color: 0x5e6b63 })
+          )
+        }
+        ref={(el: THREE.Line) => {
+          if (el) linesRef.current[1] = el;
+        }}
+      />
+
+      {/* 4 Traveling Pulses */}
+      {Array.from({ length: 4 }).map((_, idx) => (
+        <mesh
+          key={idx}
+          ref={(el) => {
+            if (el) pulsesRef.current[idx] = el;
+          }}
+          geometry={pulseGeo}
+          visible={false}
+        >
+          <meshBasicMaterial color={0x3e63d9} />
         </mesh>
-      </group>
+      ))}
 
-      {/* Right Connection Line */}
-      <primitive object={rightLineObj} />
-
-      {/* Right Traveling Pulse */}
-      {(state === "encrypting" || state === "verifying") && !reducedMotion && (
-        <mesh ref={pulseRightRef} position={[4.5, 0, 0]}>
-          <sphereGeometry args={[0.12, 8, 8]} />
-          <meshBasicMaterial
-            color={state === "verifying" ? colors.coreVerifying : colors.lineActive}
-          />
-        </mesh>
-      )}
+      {/* Receipt Block (Scales in when anchored) */}
+      <mesh ref={blockRef} geometry={blockGeo} position={[0, 3.2, 0]} scale={0.001}>
+        <meshStandardMaterial color={0xc98a1a} roughness={0.35} metalness={0.3} />
+      </mesh>
     </group>
   );
 }
@@ -415,6 +332,14 @@ export default function VaultCanvas({
   const [reducedMotion, setReducedMotion] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
+
+  // Drag and inertia state matching prototype
+  const [rot, setRot] = useState(0);
+  const isDragging = useRef(false);
+  const prevX = useRef(0);
+  const vel = useRef(0);
+  const rotRef = useRef(0);
+
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -429,7 +354,6 @@ export default function VaultCanvas({
     checkMobile();
     window.addEventListener("resize", checkMobile);
 
-    // Pause rendering when tab is hidden or canvas is scrolled offscreen
     const handleVisibilityChange = () => {
       setIsVisible(!document.hidden);
     };
@@ -445,71 +369,98 @@ export default function VaultCanvas({
       observer.observe(containerRef.current);
     }
 
+    // Animation frame for inertia and idle auto-rotation
+    let animId: number;
+    let lastTime = performance.now();
+
+    const inertiaLoop = () => {
+      const now = performance.now();
+      const dt = Math.min((now - lastTime) * 0.001, 0.05);
+      lastTime = now;
+
+      if (!reducedMotion && !isDragging.current) {
+        rotRef.current += vel.current;
+        vel.current *= 0.94;
+        rotRef.current += dt * 0.18;
+        setRot(rotRef.current);
+      }
+
+      animId = requestAnimationFrame(inertiaLoop);
+    };
+    animId = requestAnimationFrame(inertiaLoop);
+
     return () => {
       motionQuery.removeEventListener("change", motionHandler);
       window.removeEventListener("resize", checkMobile);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       observer.disconnect();
+      cancelAnimationFrame(animId);
     };
-  }, []);
+  }, [reducedMotion]);
+
+  // Pointer drag event handlers matching prototype
+  const onPointerDown = (e: React.PointerEvent) => {
+    isDragging.current = true;
+    prevX.current = e.clientX;
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!isDragging.current) return;
+    const deltaX = e.clientX - prevX.current;
+    prevX.current = e.clientX;
+    rotRef.current += deltaX * 0.01;
+    vel.current = deltaX * 0.01;
+    setRot(rotRef.current);
+  };
+
+  const onPointerUp = () => {
+    isDragging.current = false;
+  };
 
   const sizeClasses = {
-    hero: "w-full h-[420px] sm:h-[500px]",
+    hero: "w-full h-[480px] sm:h-[520px]",
     mini: "w-24 h-24",
     inline: "w-16 h-16",
   };
 
-  const cameraDistance = isMobile ? 10.2 : size === "mini" ? 8.5 : size === "inline" ? 8.5 : 7.6;
-
-  const stateDescriptions: Record<VaultState, string> = {
-    idle: "Vault in steady state. Documents secured.",
-    encrypting: "Documents pulling inward and encrypting in browser with AES-256-GCM.",
-    verifying: "Scanning Intel TDX hardware attestation and nonce freshness.",
-    anchored: "Audit receipt anchored to NEAR Testnet block.",
-    failed: "Verification failed. Fail-closed engaged — no confidential context sent.",
-  };
+  const cameraDistance = isMobile ? 15 : size === "mini" ? 12 : size === "inline" ? 12 : 11;
 
   return (
     <div
       ref={containerRef}
-      className={`relative select-none ${sizeClasses[size]} ${className}`}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      className={`relative select-none cursor-grab active:cursor-grabbing touch-none ${sizeClasses[size]} ${className}`}
       role="region"
-      aria-label={`Interactive 3D vault: ${stateDescriptions[state]}`}
+      aria-label="Interactive 3D model of a private room that reacts to encryption, verification and receipt steps"
     >
       {isVisible && (
         <Canvas
-          camera={{ position: [0, 1.8, cameraDistance], fov: 45 }}
+          camera={{ position: [0, 1.2, cameraDistance], fov: 38 }}
           dpr={[1, 2]}
           gl={{
             powerPreference: "high-performance",
-            antialias: !isMobile,
+            antialias: true,
             alpha: true,
           }}
         >
-          <ambientLight intensity={0.9} />
-          <directionalLight position={[5, 8, 5]} intensity={1.2} />
-          <directionalLight position={[-5, -4, -5]} intensity={0.4} />
+          <ambientLight intensity={0.85} color="#ffffff" />
+          <directionalLight position={[4, 6, 5]} intensity={0.9} color="#ffffff" />
 
           <VaultModel
             state={state}
             reducedMotion={reducedMotion}
             isMobile={isMobile}
-          />
-
-          <OrbitControls
-            enablePan={false}
-            enableZoom={false}
-            autoRotate={!reducedMotion && state === "idle"}
-            autoRotateSpeed={0.5}
-            maxPolarAngle={Math.PI / 1.7}
-            minPolarAngle={Math.PI / 3.2}
+            dragRot={rot}
           />
         </Canvas>
       )}
 
       {/* Screen-reader status announcement */}
       <span className="sr-only" aria-live="polite">
-        Vault status: {stateDescriptions[state]}
+        Vault status: {state}
       </span>
     </div>
   );

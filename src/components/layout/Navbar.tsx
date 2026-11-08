@@ -3,49 +3,42 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Shield, Wallet, Menu, X, ChevronDown, Check, LogOut, ArrowUpRight } from "lucide-react";
+import { ChevronDown, Check, LogOut, ExternalLink, Menu, X } from "lucide-react";
 import { useWallet } from "@/context/WalletContext";
 import { ThemeToggle } from "./ThemeToggle";
-import { Button } from "../ui/Button";
 import { TestnetPill } from "../ui/Badge";
+import { getExplorerAccountUrl } from "@/lib/near/config";
 import clsx from "clsx";
 
 export function Navbar() {
   const pathname = usePathname();
   const { accountId, isConnected, disconnectWallet, switchAccount } = useWallet();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [walletDropdownOpen, setWalletDropdownOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navLinks = [
     { label: "How it works", href: "/how-it-works" },
     { label: "Security", href: "/security" },
-    { label: "What we don't promise", href: "/#limitations" },
+    { label: "What we don’t promise", href: "/#limits" },
     { label: "Workspace", href: "/app" },
   ];
 
   return (
-    <header className="sticky top-0 z-50 w-full glass border-b border-line transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+    <nav className="sticky top-0 z-50 max-w-[1240px] mx-auto w-full pt-3 px-3 sm:px-5">
+      <div className="bar glass flex items-center justify-between gap-4 p-2 sm:px-4 rounded-[18px] transition-colors">
         {/* Brand Logo */}
-        <Link href="/" className="flex items-center gap-2.5 group touch-target">
-          <div className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center text-accent-ink shadow-sm group-hover:scale-105 transition-transform">
-            <Shield className="w-5 h-5 fill-current/20" aria-hidden="true" />
-          </div>
-          <div className="flex flex-col">
-            <span className="font-semibold text-base tracking-tight leading-none text-ink flex items-center gap-1.5">
-              ProofRoom
-              <span className="text-[10px] font-medium tracking-wide px-1.5 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20">
-                Intel TDX
-              </span>
-            </span>
-            <span className="text-[11px] text-muted tracking-tight">
-              Private intelligence. Verifiable trust.
-            </span>
-          </div>
+        <Link href="/" className="logo flex items-center gap-2.5 font-bold tracking-tight text-ink text-base">
+          <i
+            aria-hidden="true"
+            className="w-7 h-7 rounded-[9px] bg-accent text-accent-ink grid place-items-center not-italic text-sm font-bold shadow-sm"
+          >
+            ◈
+          </i>
+          <span>ProofRoom</span>
         </Link>
 
-        {/* Desktop Navigation Links */}
-        <nav className="hidden md:flex items-center gap-1">
+        {/* Desktop Links */}
+        <div className="links hidden md:flex items-center gap-5 text-sm text-muted">
           {navLinks.map((link) => {
             const isActive =
               pathname === link.href ||
@@ -55,37 +48,32 @@ export function Navbar() {
                 key={link.href}
                 href={link.href}
                 className={clsx(
-                  "px-3.5 py-2 rounded-xl text-sm font-medium transition-colors touch-target inline-flex items-center",
-                  isActive
-                    ? "bg-line/20 text-ink font-semibold"
-                    : "text-muted hover:text-ink hover:bg-line/15"
+                  "hover:text-ink transition-colors",
+                  isActive ? "text-ink font-semibold" : ""
                 )}
               >
                 {link.label}
               </Link>
             );
           })}
-        </nav>
+        </div>
 
-        {/* Right Section: Testnet indicator, Wallet status, Theme Toggle */}
-        <div className="hidden sm:flex items-center gap-3">
-          {/* HARD RULE #5: Testnet indicator visible whenever connected */}
-          {isConnected && <TestnetPill />}
+        {/* Controls: Network Pill, Theme, Wallet */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {isConnected && <TestnetPill className="hidden sm:inline-flex" />}
 
-          {/* Theme Toggle */}
           <ThemeToggle />
 
-          {/* Wallet Button */}
           {isConnected ? (
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setWalletDropdownOpen(!walletDropdownOpen)}
-                className="flex items-center gap-2 px-3.5 py-2 rounded-xl glass border border-line text-xs font-medium text-ink hover:bg-solid transition-colors min-h-[44px]"
+                className="btn text-xs font-semibold font-mono py-2 px-3 gap-1.5"
                 aria-expanded={walletDropdownOpen}
               >
-                <div className="w-2 h-2 rounded-full bg-ok" aria-hidden="true" />
-                <span className="font-mono">{accountId}</span>
+                <span className="w-2 h-2 rounded-full bg-ok" aria-hidden="true" />
+                <span className="truncate max-w-[120px]">{accountId}</span>
                 <ChevronDown className="w-3.5 h-3.5 text-muted" aria-hidden="true" />
               </button>
 
@@ -140,77 +128,46 @@ export function Navbar() {
               )}
             </div>
           ) : (
-            <Link href="/connect">
-              <Button size="sm" variant="primary" icon={<Wallet className="w-4 h-4" />}>
-                Connect wallet
-              </Button>
+            <Link href="/connect" className="btn primary">
+              Connect wallet
             </Link>
           )}
-        </div>
 
-        {/* Mobile Menu Button */}
-        <div className="flex sm:hidden items-center gap-2">
-          <ThemeToggle />
+          {/* Mobile hamburger */}
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-            className="p-2 rounded-xl border border-line text-ink hover:bg-line/15 touch-target flex items-center justify-center"
+            className="md:hidden p-2 rounded-xl text-ink hover:bg-line/15 touch-target flex items-center justify-center"
+            aria-label="Toggle navigation menu"
           >
-            {mobileMenuOpen ? (
-              <X className="w-5 h-5" aria-hidden="true" />
-            ) : (
-              <Menu className="w-5 h-5" aria-hidden="true" />
-            )}
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
       </div>
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="sm:hidden border-t border-line glass bg-solid/95 p-4 space-y-3">
+        <div className="md:hidden mt-2 p-4 rounded-2xl glass border border-line bg-solid/95 space-y-3">
           {isConnected && (
             <div className="pb-2 border-b border-line flex items-center justify-between">
               <span className="text-xs font-mono text-ink truncate">{accountId}</span>
               <TestnetPill />
             </div>
           )}
-          <nav className="flex flex-col space-y-1">
+          <div className="flex flex-col space-y-1 text-sm font-medium">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className="px-3 py-2.5 rounded-xl text-sm font-medium text-ink hover:bg-line/20 touch-target flex items-center justify-between"
+                className="px-3 py-2 rounded-xl hover:bg-line/15 text-ink"
               >
-                <span>{link.label}</span>
-                <ArrowUpRight className="w-4 h-4 text-muted" aria-hidden="true" />
+                {link.label}
               </Link>
             ))}
-          </nav>
-          <div className="pt-2 border-t border-line">
-            {isConnected ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full text-bad border-bad/30"
-                onClick={() => {
-                  disconnectWallet();
-                  setMobileMenuOpen(false);
-                }}
-              >
-                Disconnect wallet
-              </Button>
-            ) : (
-              <Link href="/connect" onClick={() => setMobileMenuOpen(false)} className="w-full block">
-                <Button size="sm" variant="primary" className="w-full">
-                  Connect wallet
-                </Button>
-              </Link>
-            )}
           </div>
         </div>
       )}
-    </header>
+    </nav>
   );
 }

@@ -1,172 +1,190 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { VaultScene } from "./VaultScene";
 import { VaultState } from "@/hooks/useVaultState";
-import { SecurityBadge } from "@/components/ui/Badge";
-import { Play, ShieldAlert, FileLock2, Cpu, CheckCircle2 } from "lucide-react";
 
 export function VaultHeroHud() {
   const [previewState, setPreviewState] = useState<VaultState>("idle");
   const [isPlayingAll, setIsPlayingAll] = useState(false);
-
-  useEffect(() => {
-    if (!isPlayingAll) return;
-
-    const sequence: VaultState[] = ["idle", "encrypting", "verifying", "anchored", "failed", "idle"];
-    let step = 0;
-
-    const interval = setInterval(() => {
-      step = (step + 1) % sequence.length;
-      setPreviewState(sequence[step]);
-      if (step === sequence.length - 1) {
-        setIsPlayingAll(false);
-      }
-    }, 2800);
-
-    return () => clearInterval(interval);
-  }, [isPlayingAll]);
+  const timeoutsRef = useRef<NodeJS.Timeout[]>([]);
 
   const stateDetails: Record<
     VaultState,
-    { label: string; explanation: string; badgeStatus: string }
+    { label: string; tag: string; dot: string; desc: string }
   > = {
     idle: {
-      label: "Vault idle",
-      explanation: "Documents at rest, encrypted before leaving the browser.",
-      badgeStatus: "NOT_CHECKED",
+      label: "Ready",
+      tag: "Not checked",
+      dot: "var(--muted)",
+      desc: "Your room is idle. Pick a step to see what happens to your documents.",
     },
     encrypting: {
-      label: "Client-side encryption",
-      explanation: "AES-256-GCM data key wrapped for authorized participant public keys.",
-      badgeStatus: "PENDING",
+      label: "Locking files in your browser",
+      tag: "Pending",
+      dot: "var(--warn)",
+      desc: "Each file gets its own key and is scrambled before it leaves your device.",
     },
     verifying: {
-      label: "Enclave verification",
-      explanation: "Intel TDX hardware quote verified with fresh nonce and ReportData key binding.",
-      badgeStatus: "PENDING",
+      label: "Checking the secure AI environment",
+      tag: "Pending",
+      dot: "var(--warn)",
+      desc: "We confirm the hardware and signing keys before any question is sent.",
     },
     anchored: {
-      label: "Anchored on NEAR",
-      explanation: "Tamper-evident hash commitment recorded on NEAR Testnet block.",
-      badgeStatus: "VERIFIED",
+      label: "Receipt saved to NEAR Testnet",
+      tag: "Preview only",
+      dot: "var(--ok)",
+      desc: "A fingerprint of the activity is recorded. No document text goes on-chain.",
     },
     failed: {
-      label: "Verification failed (fail-closed)",
-      explanation: "Hardware quote or key mismatch detected. Confidential data was never sent.",
-      badgeStatus: "FAILED",
+      label: "Check failed. Nothing was sent",
+      tag: "Failed",
+      dot: "var(--bad)",
+      desc: "If proof is missing or wrong, your question stays in your browser.",
     },
   };
+
+  const clearTimeouts = () => {
+    timeoutsRef.current.forEach(clearTimeout);
+    timeoutsRef.current = [];
+  };
+
+  const setStep = (step: VaultState) => {
+    clearTimeouts();
+    setIsPlayingAll(false);
+    setPreviewState(step);
+  };
+
+  const handlePlayAll = () => {
+    clearTimeouts();
+    setIsPlayingAll(true);
+    setPreviewState("encrypting");
+
+    timeoutsRef.current.push(
+      setTimeout(() => setPreviewState("verifying"), 3200),
+      setTimeout(() => setPreviewState("anchored"), 6400),
+      setTimeout(() => {
+        setPreviewState("idle");
+        setIsPlayingAll(false);
+      }, 10000)
+    );
+  };
+
+  useEffect(() => {
+    return () => clearTimeouts();
+  }, []);
 
   const current = stateDetails[previewState];
 
   return (
-    <div className="flex flex-col items-center w-full">
-      {/* 3D Scene Stage */}
-      <div className="w-full relative rounded-3xl overflow-hidden glass border border-line">
-        <VaultScene state={previewState} size="hero" />
+    <div
+      id="stage"
+      className="relative w-full rounded-[28px] overflow-hidden min-h-[500px] sm:min-h-[520px] border border-line"
+      style={{
+        background: "radial-gradient(120% 90% at 50% 20%, var(--solid), var(--bg2))",
+      }}
+    >
+      {/* 3D Scene */}
+      <VaultScene state={previewState} size="hero" />
 
-        {/* HUD Glass Overlay Panel at bottom of 3D stage */}
-        <div className="p-4 sm:p-5 border-t border-line/60 glass bg-surface/85 backdrop-blur-md">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs uppercase tracking-wider text-muted font-semibold">
-                  Vault state
-                </span>
-                <SecurityBadge status={current.badgeStatus} label={current.label} />
-              </div>
-              <p className="text-xs sm:text-sm text-ink max-w-xl">
-                {current.explanation}
-              </p>
-            </div>
-            <div className="shrink-0 text-right">
-              <span className="text-[11px] px-2 py-0.5 rounded-md bg-line/20 text-muted font-mono">
-                Preview animation
-              </span>
-            </div>
-          </div>
+      {/* Note Badge top-left */}
+      <span className="absolute top-3 left-3 text-xs py-1.5 px-3 rounded-full glass text-muted z-10 pointer-events-none select-none">
+        Preview animation · drag to rotate
+      </span>
 
-          {/* Interactive Preview Control Row */}
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-2 border-t border-line/40">
-            <span className="text-xs text-muted mr-1 hidden sm:inline">Simulate:</span>
-            <button
-              type="button"
-              onClick={() => {
-                setIsPlayingAll(false);
-                setPreviewState("encrypting");
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors inline-flex items-center gap-1.5 ${
-                previewState === "encrypting"
-                  ? "bg-accent text-accent-ink border-accent"
-                  : "bg-surface hover:bg-line/20 text-ink border-line"
-              }`}
-            >
-              <FileLock2 className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>Lock files</span>
-            </button>
+      {/* HUD Glass Overlay at bottom */}
+      <div
+        className="absolute left-3 right-3 bottom-3 rounded-[20px] p-3.5 sm:p-4 glass z-10 select-none"
+        aria-live="polite"
+      >
+        <div className="flex items-center gap-2.5 font-semibold text-sm text-ink mb-1">
+          <span
+            className="w-2.5 h-2.5 rounded-full shrink-0 transition-colors"
+            style={{ background: current.dot }}
+            aria-hidden="true"
+          />
+          <span>{current.label}</span>
+          <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-line text-muted ml-auto">
+            {current.tag}
+          </span>
+        </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setIsPlayingAll(false);
-                setPreviewState("verifying");
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors inline-flex items-center gap-1.5 ${
-                previewState === "verifying"
-                  ? "bg-info text-solid border-info"
-                  : "bg-surface hover:bg-line/20 text-ink border-line"
-              }`}
-            >
-              <Cpu className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>Check AI</span>
-            </button>
+        <p className="text-xs sm:text-sm text-muted m-0 mb-3 leading-normal">
+          {current.desc}
+        </p>
 
-            <button
-              type="button"
-              onClick={() => {
-                setIsPlayingAll(false);
-                setPreviewState("anchored");
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors inline-flex items-center gap-1.5 ${
-                previewState === "anchored"
-                  ? "bg-warn text-solid border-warn"
-                  : "bg-surface hover:bg-line/20 text-ink border-line"
-              }`}
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>Save receipt</span>
-            </button>
+        {/* Step Control Buttons */}
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Preview steps">
+          <button
+            type="button"
+            data-s="encrypt"
+            aria-pressed={previewState === "encrypting"}
+            onClick={() => setStep("encrypting")}
+            className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all min-h-[40px] ${
+              previewState === "encrypting"
+                ? "bg-accent text-accent-ink border-transparent shadow-sm"
+                : "bg-solid text-ink border-line hover:border-accent"
+            }`}
+          >
+            1 Lock files
+          </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setIsPlayingAll(false);
-                setPreviewState("failed");
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors inline-flex items-center gap-1.5 ${
-                previewState === "failed"
-                  ? "bg-bad text-solid border-bad"
-                  : "bg-surface hover:bg-line/20 text-bad border-line"
-              }`}
-            >
-              <ShieldAlert className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>Test a failure</span>
-            </button>
+          <button
+            type="button"
+            data-s="verify"
+            aria-pressed={previewState === "verifying"}
+            onClick={() => setStep("verifying")}
+            className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all min-h-[40px] ${
+              previewState === "verifying"
+                ? "bg-accent text-accent-ink border-transparent shadow-sm"
+                : "bg-solid text-ink border-line hover:border-accent"
+            }`}
+          >
+            2 Check AI
+          </button>
 
-            <button
-              type="button"
-              onClick={() => setIsPlayingAll(!isPlayingAll)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors inline-flex items-center gap-1.5 ml-auto ${
-                isPlayingAll
-                  ? "bg-ink text-solid border-ink"
-                  : "bg-surface hover:bg-line/20 text-ink border-line"
-              }`}
-            >
-              <Play className={`w-3.5 h-3.5 ${isPlayingAll ? "animate-spin" : ""}`} aria-hidden="true" />
-              <span>{isPlayingAll ? "Playing..." : "Play all"}</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            data-s="anchor"
+            aria-pressed={previewState === "anchored"}
+            onClick={() => setStep("anchored")}
+            className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all min-h-[40px] ${
+              previewState === "anchored"
+                ? "bg-accent text-accent-ink border-transparent shadow-sm"
+                : "bg-solid text-ink border-line hover:border-accent"
+            }`}
+          >
+            3 Save receipt
+          </button>
+
+          <button
+            type="button"
+            data-s="fail"
+            aria-pressed={previewState === "failed"}
+            onClick={() => setStep("failed")}
+            className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all min-h-[40px] ${
+              previewState === "failed"
+                ? "bg-bad text-solid border-transparent shadow-sm"
+                : "bg-solid text-ink border-line hover:border-bad"
+            }`}
+          >
+            Test a failure
+          </button>
+
+          <button
+            type="button"
+            id="play"
+            aria-pressed={isPlayingAll}
+            onClick={handlePlayAll}
+            className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all min-h-[40px] ml-auto ${
+              isPlayingAll
+                ? "bg-accent text-accent-ink border-transparent"
+                : "bg-accent text-accent-ink hover:opacity-90"
+            }`}
+          >
+            {isPlayingAll ? "Playing..." : "Play all"}
+          </button>
         </div>
       </div>
     </div>
