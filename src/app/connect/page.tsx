@@ -20,7 +20,7 @@ import { NEAR_CONFIG, getExplorerAccountUrl } from "@/lib/near/config";
 
 export default function ConnectPage() {
   const router = useRouter();
-  const { accountId, isConnected, connectWallet, disconnectWallet, switchAccount, isConnecting } =
+  const { accountId, isConnected, connectWallet, disconnectWallet, switchAccount, isConnecting, lastAuthError } =
     useWallet();
   const [selectedPreset, setSelectedPreset] = useState<"founder.testnet" | "investor.testnet">(
     "founder.testnet"
@@ -49,7 +49,7 @@ export default function ConnectPage() {
     if (success) {
       router.push("/app");
     } else {
-      setErrorMessage("Could not sign authentication challenge. Please try again.");
+      setErrorMessage(lastAuthError || "Could not sign authentication challenge. Please try again.");
     }
   };
 

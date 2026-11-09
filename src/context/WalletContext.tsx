@@ -13,6 +13,7 @@ interface WalletContextType {
   disconnectWallet: () => void;
   switchAccount: (newAccountId: string) => void;
   isConnecting: boolean;
+  lastAuthError: string | null;
 }
 
 const WalletContext = createContext<WalletContextType>({
@@ -24,12 +25,14 @@ const WalletContext = createContext<WalletContextType>({
   disconnectWallet: () => {},
   switchAccount: () => {},
   isConnecting: false,
+  lastAuthError: null,
 });
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [accountId, setAccountId] = useState<string | null>(null);
   const [userKeyPair, setUserKeyPair] = useState<KeyPair | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [lastAuthError, setLastAuthError] = useState<string | null>(null);
 
   useEffect(() => {
     // Load persisted state from localStorage
@@ -51,6 +54,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const connectWallet = async (preferredAccount?: string): Promise<boolean> => {
     setIsConnecting(true);
+    setLastAuthError(null);
     try {
       const targetAccount = (preferredAccount || "founder.testnet").toLowerCase();
 
@@ -83,15 +87,39 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Step 2: Sign and verify challenge
-      // In web app, we simulate the ed25519 signature from the wallet
-      const dummySig = "a".repeat(128); // 64 bytes hex
+      // Generate or retrieve persistent Ed25519 signing keypair for targetAccount
+      let ed25519PrivKeyHex = localStorage.getItem(`proofroom_ed25519_priv_${targetAccount}`);
+      let ed25519PubKeyHex = localStorage.getItem(`proofroom_ed25519_pub_${targetAccount}`);
+
+      const { ed25519 } = await import("@noble/curves/ed25519.js");
+      const { bytesToHex, hexToBytes } = await import("@noble/hashes/utils.js");
+      const { buildNep413MessageHash } = await import("@/lib/crypto/wallet-binding");
+
+      if (!ed25519PrivKeyHex || !ed25519PubKeyHex) {
+        const priv = ed25519.utils.randomSecretKey();
+        const pub = ed25519.getPublicKey(priv);
+        ed25519PrivKeyHex = bytesToHex(priv);
+        ed25519PubKeyHex = bytesToHex(pub);
+        localStorage.setItem(`proofroom_ed25519_priv_${targetAccount}`, ed25519PrivKeyHex);
+        localStorage.setItem(`proofroom_ed25519_pub_${targetAccount}`, ed25519PubKeyHex);
+      }
+
+      // Compute cryptographic NEP-413 message hash and sign it
+      const messageHash = buildNep413MessageHash(
+        challengeData.challenge.message,
+        challengeData.challenge.nonce,
+        challengeData.challenge.recipient
+      );
+      const signatureBytes = ed25519.sign(messageHash, hexToBytes(ed25519PrivKeyHex));
+      const signatureHex = bytesToHex(signatureBytes);
+
       const verifyRes = await fetch("/api/auth/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           accountId: targetAccount,
-          publicKey: `ed25519:6E8sWVqNQzZ9X7hX6XbF9vQ7w5p4s3d2f1g0h8j7k6l5`,
-          signature: dummySig,
+          publicKey: `ed25519:${ed25519PubKeyHex}`,
+          signature: signatureHex,
           message: challengeData.challenge.message,
           nonce: challengeData.challenge.nonce,
           recipient: challengeData.challenge.recipient,
@@ -111,7 +139,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
       return true;
     } catch (err) {
+      const msg = err instanceof Error ? err.message : "Authentication failed";
       console.error("Wallet connection failed:", err);
+      setLastAuthError(msg);
       return false;
     } finally {
       setIsConnecting(false);
@@ -121,6 +151,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const disconnectWallet = () => {
     setAccountId(null);
     setUserKeyPair(null);
+    setLastAuthError(null);
     localStorage.removeItem("proofroom_account_id");
     localStorage.removeItem("proofroom_keypair");
   };
@@ -140,6 +171,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         disconnectWallet,
         switchAccount,
         isConnecting,
+        lastAuthError,
       }}
     >
       {children}
