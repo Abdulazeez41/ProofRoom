@@ -1,184 +1,345 @@
+<div align="center">
+
 # ProofRoom
 
-> **Private intelligence. Verifiable trust.**
+**Private intelligence. Verifiable trust.**
 
-ProofRoom is a verifiably private AI-powered virtual data room that enables organizations to share confidential documents with authorized parties, collaborate securely, and analyze sensitive information using AI backed by hardware-enforced Trusted Execution Environments (Intel TDX) and tamper-evident blockchain audit commitments on NEAR Testnet.
+[![Next.js](https://img.shields.io/badge/Next.js-14.2-black?style=flat-square&logo=next.js)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
+[![NEAR Protocol](https://img.shields.io/badge/NEAR-Testnet-000000?style=flat-square&logo=near)](https://near.org/)
+[![Intel TDX](https://img.shields.io/badge/TEE-Intel_TDX-0071C5?style=flat-square&logo=intel)](https://www.intel.com/content/www/us/en/developer/tools/trust-domain-extensions/overview.html)
+[![Cryptography](https://img.shields.io/badge/Encryption-AES--256--GCM_%7C_X25519-0F7A52?style=flat-square)](https://en.wikipedia.org/wiki/Galois/Counter_Mode)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square)](LICENSE)
 
----
+*A verifiably private AI data room. Files are encrypted client-side in your browser, AI inference runs within Intel TDX hardware enclaves on NEAR AI Cloud, and every key lifecycle event and query receipt is anchored to NEAR Testnet.*
 
-## 1. Product Vision and Core Proposition
+[Live Demo](https://proofroom.onrender.com) · [Architecture](#system-architecture) · [Quickstart](#local-development-quickstart) · [Deployment](#render-cloud-deployment) · [Security Boundaries](#security-boundaries--threat-model)
 
-Traditional virtual data rooms require users to unconditionally trust the platform operator with financial statements, commercial contracts, customer registries, and M&A materials. 
-
-ProofRoom introduces a **privacy-by-design** architecture:
-
-- **Client-Side Document Encryption**: Documents are encrypted in the user's browser with random AES-256-GCM data encryption keys before touching the network.
-- **Wallet-Bound Asymmetric Access**: Keys are encapsulated for authorized participants via X25519 Elliptic Curve Diffie-Hellman and HKDF-SHA256, authenticated using NEAR NEP-413 wallet signatures.
-- **Zero Plaintext Persistence**: The application database and object storage only ever store encrypted ciphertext blobs, key envelopes, and cryptographic hashes.
-- **Hardware-Attested AI Inference**: AI analysis executes inside Intel TDX (Trust Domain Extensions) confidential virtual machines on NEAR AI Cloud.
-- **Fail-Closed Verification Engine**: Before transmitting context, ProofRoom verifies Intel TDX quote structure, MRTD/RTMR measurements, ReportData signing key binding, and fresh nonces. Responses are verified against enclave digital signatures.
-- **Tamper-Evident Testnet Records**: Opaque room identifiers, document hashes, permission grants, revocations, and activity receipts are committed to a NEAR Testnet smart contract.
+</div>
 
 ---
 
-## 2. System Architecture
+## Table of Contents
 
-ProofRoom is structured across five decoupled layers ensuring strict separation of concerns and cryptographic defense-in-depth:
+1. [Executive Summary](#executive-summary)
+2. [Core Product Value](#core-product-value)
+3. [System Architecture](#system-architecture)
+4. [Cryptographic Engineering](#cryptographic-engineering)
+5. [Intel TDX Confidential Computing & Fail-Closed Verification](#intel-tdx-confidential-computing--fail-closed-verification)
+6. [NEAR Testnet Smart Contract](#near-testnet-smart-contract)
+7. [Design System & Interactive 3D Vault](#design-system--interactive-3d-vault)
+8. [Synthetic Due Diligence Scenario (Northstar Technologies)](#synthetic-due-diligence-scenario-northstar-technologies)
+9. [Local Development Quickstart](#local-development-quickstart)
+10. [Render Cloud Deployment](#render-cloud-deployment)
+11. [API Specification](#api-specification)
+12. [Security Boundaries & Threat Model](#security-boundaries--threat-model)
+13. [License](#license)
+
+---
+
+## Executive Summary
+
+Traditional Virtual Data Rooms (VDRs) require businesses to trust platform operators with sensitive financial audits, proprietary customer contracts, cap tables, and M&A documentation. Even when data is encrypted at rest, the platform host retains administrative access to decryption keys and plaintext files. Furthermore, modern AI document analysis commonly transmits raw corporate documents to multi-tenant LLM providers where host operating systems, hypervisors, and server operators can inspect memory.
+
+**ProofRoom replaces institutional assumptions with verifiable cryptographic evidence:**
+- **Client-Side Document Sealing:** Documents are encrypted locally in the user's browser with random AES-256-GCM data encryption keys (DEKs) before transmission.
+- **Asymmetric Key Encapsulation (KEM):** DEKs are sealed for authorized recipients using X25519 Diffie-Hellman and HKDF-SHA256, authenticated with NEAR NEP-413 Ed25519 wallet challenges.
+- **Hardware-Enforced Private AI:** Document passages and queries are analyzed inside Intel TDX (Trust Domain Extensions) confidential virtual machines on NEAR AI Cloud.
+- **Fail-Closed Hardware Attestation:** ProofRoom verifies hardware measurement quotes (MRTD/RTMR) and ReportData signing key bindings before any prompt context leaves the user's machine.
+- **Tamper-Evident Audit Trail:** Room identifiers, document hashes, access grants, revocations, and AI inference receipts are permanently committed to NEAR Testnet.
+
+---
+
+## Core Product Value
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        LAYER 1: BROWSER CLIENT                         │
-│  - WebCrypto AES-256-GCM Document Encryption/Decryption                │
-│  - X25519 Key Exchange & Key Envelopes                                 │
-│  - Client-side Document Extraction & Local Passage Search              │
-│  - NEAR AI Encrypted Chat Protocol & Hardware Attestation Verifier     │
-│  - NEAR Wallet Selector (NEP-413 Wallet Signature Auth)                │
-└──────────────────┬───────────────────────────────┬─────────────────────┘
-                   │ Encrypted Blobs               │ Auth, Envelopes &
-                   │ & Attested Requests           │ Metadata Commitments
-                   ▼                               ▼
-┌───────────────────────────────────┐    ┌───────────────────────────────┐
-│     LAYER 3: STORAGE ENCLAVE      │    │  LAYER 2: APPLICATION BACKEND │
-│  - S3 / Private Encrypted Storage │    │  - Next.js Route Handlers     │
-│  - Only stores AES-256 ciphertext │    │  - NEP-413 Signature Verifier │
-│  - Presigned short-lived URLs     │    │  - Zero plaintext persistence │
-│  - Zero access to DEK keys        │    │  - NEAR AI Ciphertext Relay   │
-└───────────────────────────────────┘    └───────────────┬───────────────┘
-                                                         │
-                   ┌─────────────────────────────────────┴───────────────┐
-                   ▼                                                     ▼
-┌───────────────────────────────────┐    ┌───────────────────────────────┐
-│   LAYER 4: CONFIDENTIAL AI CLOUD  │    │ LAYER 5: NEAR TESTNET ON-CHAIN│
-│  - Intel TDX Hardware TEE Enclave │    │  - Rust Smart Contract        │
-│  - Verified Quotes (MRTD / RTMR)  │    │  - Opaque Room Commitments    │
-│  - E2EE Chat Completion Protocol  │    │  - Access Grants & Revocation │
-│  - Enclave Response Signature     │    │  - Privacy Activity Receipts  │
-│  - Fail-Closed Verifier           │    │  - Testnet Explorer Anchoring │
-└───────────────────────────────────┘    └───────────────────────────────┘
+┌──────────────────┐       ┌──────────────────────┐       ┌────────────────────────┐
+│  Browser Sealing │  ──>  │  Intel TDX Enclaves  │  ──>  │  NEAR Testnet Receipts │
+│ AES-256-GCM KEM  │       │ Hardware-Verified AI │       │ Immutable Audit Proofs │
+└──────────────────┘       └──────────────────────┘       └────────────────────────┘
+```
+
+1. **For Founders & Companies:** Retain complete sovereignty over sensitive files. Authorize lead investors by their NEAR accounts, set granular expiration periods, and instantly revoke future key distribution with on-chain transparency.
+2. **For Investors & Reviewers:** Ask complex due diligence questions across multiple confidential files simultaneously. Every AI answer cites extracted source passages and includes a verified Intel TDX hardware attestation receipt.
+3. **For Compliance & Legal:** Verify an unbroken chain of custody with tamper-evident cryptographic receipts recorded on NEAR Testnet without leaking document text on-chain.
+
+---
+
+## System Architecture
+
+ProofRoom is built across five decoupled tiers ensuring defense-in-depth and zero plaintext exposure:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           TIER 1: BROWSER CLIENT                                │
+│  - WebCrypto AES-256-GCM (random 256-bit DEK per document)                      │
+│  - X25519 Key Envelopes (ECDH + HKDF-SHA256)                                    │
+│  - Client-side Document Extraction & Local Passage Search                       │
+│  - NEP-413 Ed25519 Wallet Challenge Signing                                     │
+│  - Client-Side Intel TDX Hardware Attestation Verifier                          │
+│  - Real-Time Three.js 3D Vault Stage                                            │
+└───────────────────────┬─────────────────────────────────┬───────────────────────┘
+                        │ Encrypted Blobs                 │ Auth Challenges,
+                        │ & Attestation Checks            │ Envelopes & Hashes
+                        ▼                                 ▼
+┌───────────────────────────────────────┐ ┌───────────────────────────────────────┐
+│       TIER 3: STORAGE ENCLAVE         │ │      TIER 2: APPLICATION BACKEND      │
+│  - Local Encrypted Disk / S3 Storage  │ │  - Next.js 14 App Router API Routes   │
+│  - Stores ONLY AES-256 ciphertext     │ │  - NEP-413 Signature Verification     │
+│  - Zero plaintext persistence         │ │  - Prisma ORM / SQLite Persistence    │
+│  - Presigned short-lived access       │ │  - NEAR AI Encrypted Chat Relay       │
+└───────────────────────────────────────┘ └───────────────────┬───────────────────┘
+                                                              │
+                        ┌─────────────────────────────────────┴───────────────────┐
+                        ▼                                                         ▼
+┌───────────────────────────────────────┐         ┌───────────────────────────────┐
+│   TIER 4: CONFIDENTIAL AI CLOUD       │         │  TIER 5: NEAR TESTNET LEDGER  │
+│  - Intel TDX Hardware TEE Enclave     │         │  - Rust Smart Contract        │
+│  - Cryptographic Quote (MRTD / RTMR)  │         │  - proofroom.testnet          │
+│  - Memory Encryption (Intel MKTME)    │         │  - Opaque Room Commitments    │
+│  - Enclave Response Signature         │         │  - Access Grants & Revocations│
+│  - Strict Fail-Closed Rejection       │         │  - On-Chain Audit Receipts    │
+└───────────────────────────────────────┘         └───────────────────────────────┘
 ```
 
 ---
 
-## 3. Cryptographic Standards and Invariants
+## Cryptographic Engineering
 
-| Component | Standard / Algorithm | Implementation Detail |
-|---|---|---|
-| **Document Encryption** | AES-256-GCM | 256-bit unique DEK per document, 96-bit random IV, 128-bit authentication tag |
-| **Key Encapsulation (KEM)** | X25519 + HKDF-SHA256 | RFC 8439 / ECIES-style key agreement with domain-separated salt & info strings |
-| **Wallet Identity Binding** | NEP-413 Challenge Signing | Ed25519 wallet message signatures binding NEAR accounts to client X25519 public keys |
-| **Confidential Computing** | Intel TDX | Hardware-isolated Trust Domains via NEAR AI Cloud with encrypted physical memory (MKTME) |
-| **Attestation Verification** | Intel TDX Quote v4/v5 | Validation of MRTD, RTMR0-3, and ReportData binding `sha256(enclave_signing_key \|\| nonce)` |
-| **Response Authenticity** | ECDSA P-256 / Ed25519 | Enclave signature verified over `sha256(request_hash \|\| response_hash)` |
-| **On-Chain Commitments** | SHA-256 Hashes | Opaque commitments for rooms, permissions, documents, and query receipts on NEAR Testnet |
+ProofRoom implements industry-standard, battle-tested cryptographic primitives with zero roll-your-own algorithms:
 
----
-
-## 4. Intel TDX Attestation & Fail-Closed Policy
-
-ProofRoom enforces a strict **fail-closed security rule**:
-- If an Intel TDX hardware quote fails verification, **no prompt context is transmitted**.
-- If a signing-key binding check fails, **the request is aborted**.
-- If an enclave response signature does not match the hardware quote, **the response is discarded**.
-
-### Interactive Verification Test Harness
-The ProofRoom Security Center includes an interactive test harness that allows deliberately injecting invalid quotes, replayed nonces, or mismatched keys to observe the fail-closed rejection in real time.
+| Security Primitive | Standard / Spec | Purpose & Implementation |
+| :--- | :--- | :--- |
+| **Document Encryption** | **AES-256-GCM** | Unique 256-bit symmetric DEK per document. 96-bit unique IV and 128-bit authentication tag. Ciphertext is indistinguishable from random noise. |
+| **Key Encapsulation (KEM)** | **X25519 + HKDF-SHA256** | ECIES-style key envelope. Ephemeral X25519 key exchange derives an encryption wrapping key via HKDF (RFC 5869). Only the recipient possessing the private key can unwrap the DEK. |
+| **Wallet Identity Binding** | **NEP-413** | NEAR wallet authentication challenge. The user signs a single-use 32-byte nonce using Ed25519, binding their session to an ephemeral X25519 key. |
+| **Confidential Computing** | **Intel TDX** | Hardware-isolated virtual machine with memory encrypted by CPU hardware keys (Intel Total Memory Encryption / MKTME). |
+| **Attestation Verification** | **Intel TDX Quote v4/v5** | Verifies MRTD, RTMR0–3, and ReportData binding `sha256(enclave_signing_key || nonce)` to prevent man-in-the-middle attacks. |
+| **Response Authenticity** | **Ed25519 / ECDSA** | Enclave digital signature evaluated over `sha256(request_hash || response_hash)`. |
+| **On-Chain Commitments** | **SHA-256** | One-way privacy-preserving hashes committed to NEAR Testnet. No document text or private metadata is ever committed to the blockchain. |
 
 ---
 
-## 5. NEAR Testnet Smart Contract
+## Intel TDX Confidential Computing & Fail-Closed Verification
 
-The on-chain smart contract is written in Rust using `near-sdk-rs`:
-- **Contract Account**: `proofroom.testnet`
-- **Network**: NEAR Testnet (`https://rpc.testnet.near.org`)
-- **Explorer**: `https://explorer.testnet.near.org`
+```
+[Browser Client]                                          [Intel TDX Enclave]
+       │                                                           │
+       │  1. Request Fresh Nonce & Attestation Quote              │
+       │──────────────────────────────────────────────────────────>│
+       │                                                           │
+       │  2. Return Intel TDX Quote + Enclave Signing Key          │
+       │<──────────────────────────────────────────────────────────│
+       │
+[Verify Quote Locally]
+  - Validate MRTD & RTMR measurements
+  - Check ReportData == SHA-256(Enclave Key || Nonce)
+  - Verify Freshness (Nonce replayed? Stale?)
+       │
+       ├─── [Verification FAILED] ──> ABORT (0 bytes sent to AI)
+       │
+       └─── [Verification PASSED] ──> Proceed:
+                                      Encrypt query & passages
+                                      Send to attested enclave
+```
+
+### Strict Fail-Closed Guarantee
+ProofRoom operates under a strict **fail-closed** security architecture:
+1. If the Intel TDX quote fails validation, **no document context is transmitted**.
+2. If the ReportData signing key binding check fails, **the request is immediately terminated**.
+3. If an enclave response signature does not match the attested public key, **the output is discarded**.
+4. The Security Center features an interactive test harness allowing users to inject tampered quotes and replayed nonces to inspect the fail-closed rejection in real time.
+
+---
+
+## NEAR Testnet Smart Contract
+
+The core on-chain registry is deployed to NEAR Testnet at **`proofroom.testnet`**, implemented in Rust using `near-sdk`:
+
+### Core State Invariants
+- **Opaque Identifiers:** Rooms and documents use irreversible SHA-256 commitment hashes.
+- **Access Control:** Only the registered room owner can grant or revoke participant access.
+- **Revocation Enforcement:** Once access is revoked on-chain, backend key envelope distribution terminates immediately.
+- **Activity Receipts:** Verification outcomes (`VERIFIED`, `FAILED`) and model transaction digests are permanently anchored on-chain.
 
 ### Contract Methods
 
-- `create_room(room_id, room_commitment, metadata_commitment)`: Creates room commitment.
-- `grant_access(room_id, participant_commitment, permission_commitment, expires_at)`: Records participant permission.
-- `revoke_access(room_id, participant_commitment)`: Flags permission as revoked, halting future key distribution.
-- `register_document(room_id, document_id, document_hash, version)`: Anchors document ciphertext hash.
-- `record_query_receipt(room_id, receipt_hash, verification_status, timestamp)`: Commits privacy-preserving AI activity receipt.
-- `get_room`, `get_room_documents`, `get_room_permissions`, `get_room_receipts`: View methods with pagination support.
+```rust
+// Create a new confidential data room commitment
+pub fn create_room(room_id: String, room_commitment: String, metadata_commitment: String);
+
+// Grant document access to a participant
+pub fn grant_access(room_id: String, participant_commitment: String, permission_commitment: String, expires_at: Option<u64>);
+
+// Revoke access for a participant
+pub fn revoke_access(room_id: String, participant_commitment: String);
+
+// Register encrypted document ciphertext hash
+pub fn register_document(room_id: String, document_id: String, document_hash: String, version: u32);
+
+// Record verified AI inference audit receipt
+pub fn record_query_receipt(room_id: String, receipt_hash: String, verification_status: String, timestamp: u64);
+```
 
 ---
 
-## 6. Synthetic Due Diligence Scenario: Northstar Technologies
+## Design System & Interactive 3D Vault
 
-The workspace includes a built-in seed dataset featuring fictional enterprise **Northstar Technologies, Inc.**:
+ProofRoom features a visual design system pairing classical virtual data room reliability with modern cryptographic aesthetics:
 
-- **Fundraising Room**: "Northstar Series A Due Diligence" ($8M equity financing on $32M pre-money valuation).
-- **Synthetic Documents**:
-  1. *Northstar Audited Financial Statements (2024-2025)*: $11.8M 2025 revenue (+177.6% YoY), $14.2M ARR, 78.4% gross margin, top 3 customer concentration (47.4%).
-  2. *Enterprise Master Services Agreement (Acrobat Aerospace)*: Contains Section 14.3 change-of-control termination clause and fee refund provision.
-  3. *Series A Preferred Stock Term Sheet*: 1.0x non-participating liquidation preference, board composition, and pro-rata rights.
-- **Personas**:
-  - `founder.testnet`: Data room owner and administrator.
+- **Color Tokens:**
+  - Light Palette: Warm cream background (`#F7F1E3`), solid ivory surfaces (`#FFFCF4`), deep ink typography (`#16211C`), and forest green accents (`#0F5C47`).
+  - Dark Palette: Rich obsidian background (`#12170F`), translucent surfaces (`#1E261C`), golden amber accents (`#E3B04F`), and emerald status indicators (`#5FCFA6`).
+- **Interactive 3D Vault:**
+  - Built with **Three.js** inside a WebGL canvas with zero React per-frame re-render overhead.
+  - Interactive pointer controls with momentum inertia physics and auto-rotation.
+  - **Fluid Responsive Camera:** Dynamically pulls back on mobile screens (`< 600px`) from $z = 11$ to $z = 15$ to ensure participant nodes and orbiting documents never clip on small viewports.
+  - **Driven by Real State:** Status indicators pair colors with explicit text labels (`Verified`, `Pending`, `Not checked`, `Failed`). Success animations only occur when cryptographic checks return success.
+
+---
+
+## Synthetic Due Diligence Scenario (Northstar Technologies)
+
+The workspace includes a built-in seed dataset featuring fictional enterprise **Northstar Technologies, Inc.** to test realistic investor workflows:
+
+- **Scenario:** Series A Due Diligence ($8.0M equity financing on $32.0M pre-money valuation).
+- **Preset Documents:**
+  1. *Northstar Audited Financial Statements (2024–2025):* $11.8M 2025 revenue (+177.6% YoY), $14.2M ARR, 78.4% gross margin, customer concentration metrics.
+  2. *Enterprise Master Services Agreement (Acrobat Aerospace):* Section 14.3 change-of-control termination clause and indemnification covenants.
+  3. *Series A Preferred Stock Term Sheet:* 1.0x non-participating liquidation preference, board composition, and anti-dilution provisions.
+- **Preset Testnet Accounts:**
+  - `founder.testnet`: Room owner and administrator.
   - `investor.testnet`: Authorized lead investor due diligence analyst.
+  - Custom `.testnet` account support (e.g. `yourname.testnet`).
 
 ---
 
-## 7. Local Development and Quickstart
+## Local Development Quickstart
 
 ### Prerequisites
-- Node.js 20+ (Node.js 24 supported)
-- pnpm 10+
-- Rust 1.84+ (cargo)
+- **Node.js**: `v20.x` or later (LTS recommended)
+- **pnpm**: `v9.x` or `v10.x`
+- **Rust**: `v1.84+` with `wasm32-unknown-unknown` target (for smart contracts)
 
-### Installation
+### Step 1: Clone & Install Dependencies
 ```bash
-# Clone the repository
-git clone https://github.com/ProofRoom/proofroom.git
-cd proofroom
-
-# Install dependencies
+git clone https://github.com/Abdulazeez41/ProofRoom.git
+cd ProofRoom
 pnpm install
+```
 
-# Initialize local database
+### Step 2: Database Setup
+```bash
+# Generate Prisma Client & apply SQLite schema
 pnpm db:generate
 pnpm db:push
+```
 
-# Run smart contract unit tests
+### Step 3: Run Cryptographic Verification Suite
+Verify all AES-256-GCM, X25519 envelopes, Intel TDX attestation quote verification, and fail-closed security invariants:
+```bash
+pnpm test:crypto
+```
+
+### Step 4: Run Smart Contract Unit Tests
+```bash
 pnpm contracts:test
+```
 
-# Start development server
+### Step 5: Start Development Server
+```bash
 pnpm dev
 ```
-
-Open `http://localhost:3000` to view the application.
+Open [http://localhost:3000](http://localhost:3000) to view ProofRoom.
 
 ---
 
-## 8. Testing
+## Render Cloud Deployment
 
-### Run Rust Smart Contract Unit Tests
-```bash
-pnpm contracts:test
+ProofRoom is configured for zero-configuration continuous deployment on [Render](https://render.com).
+
+### Render Web Service Settings
+
+| Parameter | Configuration Value |
+| :--- | :--- |
+| **Language** | `Node` |
+| **Branch** | `main` |
+| **Root Directory** | *(Leave blank)* |
+| **Build Command** | `npm install -g pnpm && pnpm install && pnpm db:generate && pnpm db:push && pnpm build` |
+| **Start Command** | `pnpm start` |
+| **Plan** | `Free` (or higher) |
+
+### Environment Variables
+
+Configure the following variables in Render's dashboard:
+
+```env
+NODE_VERSION=20
+NODE_ENV=production
+NEXT_PUBLIC_APP_NAME=ProofRoom
+NEXT_PUBLIC_NEAR_NETWORK=testnet
+NEXT_PUBLIC_NEAR_RPC_URL=https://rpc.testnet.near.org
+NEXT_PUBLIC_NEAR_EXPLORER_URL=https://explorer.testnet.near.org
+NEXT_PUBLIC_NEAR_WALLET_URL=https://testnet.mynearwallet.com
+NEXT_PUBLIC_NEAR_CONTRACT_ID=proofroom.testnet
+DATABASE_URL=file:./dev.db
+STORAGE_PROVIDER=local
+STORAGE_LOCAL_DIR=./data/encrypted_blobs
+SESSION_SECRET=proofroom-confidential-session-secret-key-32b
+NEAR_AI_BASE_URL=https://cloud-api.near.ai/v1
+NEAR_AI_MODEL=deepseek-ai/DeepSeek-V3.1
+NEAR_AI_API_KEY=
 ```
 
-### Run Cryptographic & Attestation Verification Suite
-```bash
-npx tsx scripts/verify-setup.ts
-```
+---
+
+## API Specification
+
+ProofRoom exposes modular, RESTful endpoints enforcing end-to-end cryptographic integrity:
+
+### Authentication & Wallet Binding
+- `POST /api/auth/challenge`: Generates a single-use NEP-413 cryptographic challenge nonce.
+- `POST /api/auth/verify`: Verifies Ed25519 wallet signatures and binds client X25519 encryption keys.
+
+### Rooms & Document Management
+- `GET /api/rooms`: Lists accessible rooms for the authenticated account.
+- `POST /api/rooms`: Creates a new room and generates cryptographic commitments.
+- `GET /api/rooms/[roomId]`: Fetches room metadata, participants, documents, and audit receipts.
+- `POST /api/documents`: Registers an encrypted document ciphertext hash and storage envelope.
+- `GET /api/documents/[documentId]/blob`: Streams encrypted document ciphertext.
+- `GET /api/documents/[documentId]/envelope`: Retrieves the recipient-specific X25519 key envelope.
+
+### Confidential AI & Hardware Verification
+- `POST /api/ai/attestation`: Retrieves live Intel TDX hardware attestation quotes and signing keys from NEAR AI Cloud.
+- `POST /api/ai/relay`: Dispatches verified encrypted requests to the attested hardware enclave.
+- `POST /api/verification/verify`: Independent verification endpoint for validating quotes and signatures.
+- `GET /api/audit/receipts`: Queries verified audit receipts anchored to NEAR Testnet.
+
+### Demo Utilities
+- `POST /api/demo/seed`: Seeds the Northstar Technologies Series A due diligence scenario.
 
 ---
 
-## 9. Security Boundaries and Threat Model
+## Security Boundaries & Threat Model
 
-### Protected Scenarios
-- **Storage Intermediary Compromise**: Encrypted with AES-256-GCM prior to upload; ciphertext is indistinguishable from random bytes.
-- **Database Administrator Compromise**: Database contains no plaintext documents or private keys.
-- **Unauthorized Participant Interception**: Key envelopes are encrypted for recipient X25519 public keys.
-- **Host Infrastructure Snooping on AI**: Memory is encrypted by the CPU hardware engine inside Intel TDX enclaves.
-- **Tampered AI Responses**: Enclave signatures validate response integrity.
+ProofRoom provides verifiable protection within defined boundaries. Trust starts with honest limits:
 
-### Explicit Out-of-Scope Risks
-- **Authorized Participant Physical Recording**: An authorized investor with legitimate decryption access can capture screens or export decrypted text on their machine.
-- **Information Downloaded Prior to Revocation**: Revoking access prevents future downloads and key distribution; it cannot retroactively erase previously downloaded files.
-- **Device Root Compromise**: A malware-infected client terminal may compromise in-memory keys.
+### What ProofRoom Protects
+- **Storage Host Compromise:** Ciphertext blobs stored in object storage or databases are AES-256-GCM encrypted prior to network transmission. Storage operators cannot read document contents.
+- **Platform Operator Snooping:** Database administrators have no access to plaintext files or user private keys.
+- **Unauthorized Interception:** Only authorized accounts receive X25519 key envelopes wrapped specifically for their public keys.
+- **Host Infrastructure Inspection of AI:** AI inference executes inside Intel TDX hardware enclaves with memory encryption. Server operators cannot read enclave memory.
+- **Tampered AI Responses:** Responses are signed by the attested enclave key and verified client-side.
+- **Audit Tampering:** Query receipts and permission changes are anchored to NEAR Testnet, preventing retroactive log alteration.
+
+### What ProofRoom Cannot Protect (Explicit Out-of-Scope Risks)
+- **Authorized Participant Physical Capture:** An authorized reviewer with legitimate decryption capability can take screenshots, photograph screens, or copy decrypted text displayed on their device.
+- **Pre-Revocation Local Copies:** Revoking access stops future key envelope distribution and downloads; it cannot remotely purge files previously saved to a reviewer's local hard drive.
+- **Compromised User Terminals:** If a participant's operating system is infected with kernel-level malware or keyloggers, in-memory keys may be intercepted.
+- **AI Hallucinations:** Large language models may misinterpret clauses. Reviewers must always inspect the verified source passages cited alongside each AI response.
 
 ---
 
-## 10. License
+## License
 
-Apache 2.0. Built with NEAR Testnet and Intel TDX on NEAR AI Cloud.
+This project is licensed under the **Apache License 2.0**. See the [LICENSE](LICENSE) file for details. Built on **NEAR Testnet** and **Intel TDX** via **NEAR AI Cloud**.
