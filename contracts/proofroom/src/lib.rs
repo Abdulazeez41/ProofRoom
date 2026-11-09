@@ -1,7 +1,7 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, UnorderedMap, Vector};
 use near_sdk::serde::{Deserialize, Serialize};
-use near_sdk::{env, near_bindgen, require, AccountId, PanicOnDefault};
+use near_sdk::{env, near, require, AccountId, PanicOnDefault};
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
@@ -42,8 +42,8 @@ pub struct ReceiptRecord {
     pub timestamp: u64,
 }
 
-#[near_bindgen]
-#[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
+#[near(contract_state)]
+#[derive(PanicOnDefault)]
 pub struct ProofRoomContract {
     pub rooms: UnorderedMap<String, RoomRecord>,
     pub room_documents: LookupMap<String, Vector<DocumentRecord>>,
@@ -51,7 +51,7 @@ pub struct ProofRoomContract {
     pub room_receipts: LookupMap<String, Vector<ReceiptRecord>>,
 }
 
-#[near_bindgen]
+#[near]
 impl ProofRoomContract {
     #[init]
     pub fn new() -> Self {
