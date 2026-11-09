@@ -3,7 +3,7 @@ export const NEAR_CONFIG = {
   nodeUrl: process.env.NEXT_PUBLIC_NEAR_RPC_URL || "https://rpc.testnet.near.org",
   explorerUrl: process.env.NEXT_PUBLIC_NEAR_EXPLORER_URL || "https://explorer.testnet.near.org",
   walletUrl: process.env.NEXT_PUBLIC_NEAR_WALLET_URL || "https://testnet.mynearwallet.com",
-  contractId: process.env.NEXT_PUBLIC_NEAR_CONTRACT_ID || "proofroom.testnet",
+  contractId: process.env.NEXT_PUBLIC_NEAR_CONTRACT_ID || "proofroom-app.testnet",
   headers: {},
 };
 

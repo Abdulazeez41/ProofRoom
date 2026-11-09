@@ -6,7 +6,7 @@
 - **pnpm**: v10+
 - **Rust Toolchain**: 1.84+ (cargo with WASM target `wasm32-unknown-unknown`)
 - **NEAR CLI**: `near-cli-rs` or `near-cli`
-- **NEAR Account**: Dedicated testnet account (e.g. `proofroom.testnet`)
+- **NEAR Account**: Dedicated testnet account (e.g. `proofroom-app.testnet`)
 
 ## 2. Environment Variables
 
@@ -35,10 +35,10 @@ rustup target add wasm32-unknown-unknown
 cargo build --manifest-path contracts/proofroom/Cargo.toml --target wasm32-unknown-unknown --release
 
 # Deploy to NEAR Testnet
-near contract deploy proofroom.testnet use-file ./contracts/proofroom/target/wasm32-unknown-unknown/release/proofroom_contract.wasm without-init-call network-config testnet sign-with-keychain send
+near contract deploy proofroom-app.testnet use-file ./contracts/proofroom/target/wasm32-unknown-unknown/release/proofroom_contract.wasm without-init-call network-config testnet sign-with-legacy-keychain send
 
 # Initialize the contract
-near contract call-function as-transaction proofroom.testnet new json-args {} prepaid-gas '100.0 Tgas' attached-deposit '0 NEAR' sign-as proofroom.testnet network-config testnet sign-with-keychain send
+near contract call-function as-transaction proofroom-app.testnet new json-args {} prepaid-gas '100.0 Tgas' attached-deposit '0 NEAR' sign-as proofroom-app.testnet network-config testnet sign-with-legacy-keychain send
 ```
 
 ## 4. Database Setup

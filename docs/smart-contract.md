@@ -1,6 +1,6 @@
 # ProofRoom — NEAR Testnet Smart Contract Reference
 
-## Contract Account: `proofroom.testnet`
+## Contract Account: `proofroom-app.testnet`
 - **Network**: NEAR Testnet
 - **Standard**: ProofRoom On-Chain Commitment Protocol v1.0.0
 - **Explorer**: `https://explorer.testnet.near.org`

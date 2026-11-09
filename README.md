@@ -95,7 +95,7 @@ ProofRoom is built across five decoupled tiers ensuring defense-in-depth and zer
 ┌───────────────────────────────────────┐         ┌───────────────────────────────┐
 │   TIER 4: CONFIDENTIAL AI CLOUD       │         │  TIER 5: NEAR TESTNET LEDGER  │
 │  - Intel TDX Hardware TEE Enclave     │         │  - Rust Smart Contract        │
-│  - Cryptographic Quote (MRTD / RTMR)  │         │  - proofroom.testnet          │
+│  - Cryptographic Quote (MRTD / RTMR)  │         │  - proofroom-app.testnet      │
 │  - Memory Encryption (Intel MKTME)    │         │  - Opaque Room Commitments    │
 │  - Enclave Response Signature         │         │  - Access Grants & Revocations│
 │  - Strict Fail-Closed Rejection       │         │  - On-Chain Audit Receipts    │
@@ -154,7 +154,7 @@ ProofRoom operates under a strict **fail-closed** security architecture:
 
 ## NEAR Testnet Smart Contract
 
-The core on-chain registry is deployed to NEAR Testnet at **`proofroom.testnet`**, implemented in Rust using `near-sdk`:
+The core on-chain registry is deployed to NEAR Testnet at **`proofroom-app.testnet`**, implemented in Rust using `near-sdk`:
 
 ### Core State Invariants
 - **Opaque Identifiers:** Rooms and documents use irreversible SHA-256 commitment hashes.
@@ -281,7 +281,7 @@ NEXT_PUBLIC_NEAR_NETWORK=testnet
 NEXT_PUBLIC_NEAR_RPC_URL=https://rpc.testnet.near.org
 NEXT_PUBLIC_NEAR_EXPLORER_URL=https://explorer.testnet.near.org
 NEXT_PUBLIC_NEAR_WALLET_URL=https://testnet.mynearwallet.com
-NEXT_PUBLIC_NEAR_CONTRACT_ID=proofroom.testnet
+NEXT_PUBLIC_NEAR_CONTRACT_ID=proofroom-app.testnet
 DATABASE_URL=file:./dev.db
 STORAGE_PROVIDER=local
 STORAGE_LOCAL_DIR=./data/encrypted_blobs
