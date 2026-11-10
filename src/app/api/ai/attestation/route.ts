@@ -1,25 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { computeSha256 } from "@/lib/crypto/hashing";
-import { x25519 } from "@noble/curves/ed25519.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
+import { getEnclaveKeyPair } from "@/lib/near-ai/enclave-key";
 
 export const dynamic = "force-dynamic";
-
-// Stable mock enclave key for local confidential verification
-const MOCK_ENCLAVE_KEYPAIR = (() => {
-  const priv = x25519.utils.randomSecretKey();
-  const pub = x25519.getPublicKey(priv);
-  return {
-    privateHex: bytesToHex(priv),
-    publicHex: bytesToHex(pub),
-  };
-})();
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const model = searchParams.get("model") || process.env.NEAR_AI_MODEL || "deepseek-ai/DeepSeek-V3.1";
     const customNonce = searchParams.get("nonce");
+
+    const enclaveKeypair = getEnclaveKeyPair();
 
     // Generate fresh 32-byte nonce
     const rawNonce = new Uint8Array(32);
@@ -33,7 +25,7 @@ export async function GET(req: NextRequest) {
     const nonce = customNonce || bytesToHex(rawNonce);
 
     // Compute hardware ReportData commitment binding enclave key and fresh nonce
-    const reportDataCommitment = computeSha256(`${MOCK_ENCLAVE_KEYPAIR.publicHex}:${nonce}`);
+    const reportDataCommitment = computeSha256(`${enclaveKeypair.publicHex}:${nonce}`);
     const reportDataHex = (reportDataCommitment + "00".repeat(16)).substring(0, 128); // 64 bytes
 
     // Real or synthetic Intel TDX quote base64
@@ -43,7 +35,7 @@ export async function GET(req: NextRequest) {
 
     const evidence = {
       modelId: model,
-      enclavePublicKeyHex: MOCK_ENCLAVE_KEYPAIR.publicHex,
+      enclavePublicKeyHex: enclaveKeypair.publicHex,
       nonce,
       tdxQuoteBase64: simulatedTdxQuote,
       measurements: {

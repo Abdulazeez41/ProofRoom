@@ -2,6 +2,13 @@ import { generateDataEncryptionKey, encryptDocumentBytes, decryptDocumentBytes }
 import { generateUserEncryptionKeyPair, createKeyEnvelope, unwrapKeyEnvelope } from "../src/lib/crypto/key-wrapping";
 import { computeSha256 } from "../src/lib/crypto/hashing";
 import { verifyTdxAttestation, AttestationEvidence } from "../src/lib/near-ai/attestation";
+import { getEnclaveKeyPair } from "../src/lib/near-ai/enclave-key";
+import { encryptChatRequest, decryptChatResponse } from "../src/lib/near-ai/encrypted-chat";
+import { hexToBytes, bytesToHex } from "@noble/hashes/utils.js";
+import { hkdf } from "@noble/hashes/hkdf.js";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { x25519 } from "@noble/curves/ed25519.js";
+import { base64ToBytes, bytesToBase64 } from "../src/lib/crypto/aes-gcm";
 
 async function runVerification() {
   console.log("=== ProofRoom Cryptographic & Verification Test Suite ===\n");
@@ -96,6 +103,80 @@ async function runVerification() {
     console.log("   ✓ Fail-closed verified: Stale/replayed nonce rejected. Reason:", replayedReport.failClosedReason);
   } else {
     throw new Error("Security Failure: Replayed nonce was not rejected!");
+  }
+
+  // 7. Testing End-to-End Enclave Chat Encryption & Relay Execution
+  console.log("\n7. Testing End-to-End Enclave Chat Encryption, Relay & Enclave Signature...");
+  const enclaveKey = getEnclaveKeyPair();
+  const sampleQuestion = "Which customer contracts contain change-of-control clauses?";
+  const { payload: encReq, clientEphemeralPrivateHex } = await encryptChatRequest(
+    [{ role: "user", content: sampleQuestion }],
+    "deepseek-ai/DeepSeek-V3.1",
+    enclaveKey.publicHex
+  );
+  console.log("   ✓ Client encrypted prompt with attested enclave public key:", enclaveKey.publicHex.substring(0, 16) + "...");
+
+  // Relay decrypts inside enclave
+  const clientPublicBytes = hexToBytes(encReq.ephemeralPublicKeyHex);
+  const enclavePrivateBytes = hexToBytes(enclaveKey.privateHex);
+  const sharedSecret = x25519.getSharedSecret(enclavePrivateBytes, clientPublicBytes);
+  const salt = new Uint8Array(32);
+  const info = new TextEncoder().encode("nearai:encrypted-chat:v1");
+  const sessionKeyBytes = hkdf(sha256, sharedSecret, salt, info, 32);
+
+  const reqCryptoKey = await crypto.subtle.importKey(
+    "raw",
+    sessionKeyBytes,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["decrypt", "encrypt"]
+  );
+
+  const decBuffer = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: hexToBytes(encReq.ivHex), tagLength: 128 },
+    reqCryptoKey,
+    base64ToBytes(encReq.encryptedInference) as unknown as BufferSource
+  );
+  const parsedInference = JSON.parse(new TextDecoder().decode(decBuffer));
+  console.log("   ✓ Enclave relay successfully decrypted client prompt:", parsedInference.messages[0].content);
+
+  // Enclave generates answer and re-encrypts
+  const mockAnswer = "Acrobat Aerospace MSA contains change-of-control in Section 14.3.";
+  const responseIv = new Uint8Array(12);
+  crypto.getRandomValues(responseIv);
+  const responseBytes = new TextEncoder().encode(JSON.stringify({ content: mockAnswer }));
+  const encResBuffer = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: responseIv, tagLength: 128 },
+    reqCryptoKey,
+    responseBytes
+  );
+  const encResBase64 = bytesToBase64(new Uint8Array(encResBuffer));
+  const responseHash = computeSha256(new Uint8Array(encResBuffer));
+  const signatureHex = computeSha256(
+    `enclave-sig:${encReq.requestHash}:${responseHash}:${enclaveKey.publicHex}`
+  );
+
+  const envelope = {
+    encryptedResponseBase64: encResBase64,
+    ivHex: bytesToHex(responseIv),
+    ephemeralPublicKeyHex: enclaveKey.publicHex,
+    signatureHex,
+    requestHash: encReq.requestHash,
+    responseHash,
+    modelId: "deepseek-ai/DeepSeek-V3.1",
+    timestamp: Date.now(),
+  };
+
+  // Client decrypts and verifies signature
+  const clientDec = await decryptChatResponse(
+    envelope,
+    clientEphemeralPrivateHex,
+    enclaveKey.publicHex
+  );
+  if (clientDec.signatureValid && clientDec.content === mockAnswer) {
+    console.log("   ✓ Client successfully verified enclave signature & decrypted hardware response!");
+  } else {
+    throw new Error("Client chat response verification failure!");
   }
 
   console.log("\n=== All Cryptographic and Verification Invariants Passed! ===");

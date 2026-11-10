@@ -5,23 +5,9 @@ import { hkdf } from "@noble/hashes/hkdf.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
 import { bytesToBase64, base64ToBytes } from "@/lib/crypto/aes-gcm";
+import { getEnclaveKeyPair } from "@/lib/near-ai/enclave-key";
 
-// Shared enclave keypair
-let ENCLAVE_KEYPAIR: { privateHex: string; publicHex: string };
-try {
-  const priv = x25519.utils.randomSecretKey();
-  const pub = x25519.getPublicKey(priv);
-  ENCLAVE_KEYPAIR = {
-    privateHex: bytesToHex(priv),
-    publicHex: bytesToHex(pub),
-  };
-} catch {
-  // fallback
-  ENCLAVE_KEYPAIR = {
-    privateHex: "a".repeat(64),
-    publicHex: "b".repeat(64),
-  };
-}
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
@@ -76,8 +62,9 @@ export async function POST(req: NextRequest) {
     // Enclave processing simulation:
     // Decrypt request inside simulated enclave memory, compute structured due-diligence answer,
     // re-encrypt for client, and sign response hash.
+    const enclaveKeypair = getEnclaveKeyPair();
     const clientPublicBytes = hexToBytes(ephemeralPublicKeyHex);
-    const enclavePrivateBytes = hexToBytes(ENCLAVE_KEYPAIR.privateHex);
+    const enclavePrivateBytes = hexToBytes(enclaveKeypair.privateHex);
     const sharedSecret = x25519.getSharedSecret(enclavePrivateBytes, clientPublicBytes);
 
     const salt = new Uint8Array(32);
@@ -140,7 +127,7 @@ export async function POST(req: NextRequest) {
 
     // Sign (requestHash || responseHash) using enclave signing key
     const signatureHex = computeSha256(
-      `enclave-sig:${requestHash}:${responseHash}:${ENCLAVE_KEYPAIR.publicHex}`
+      `enclave-sig:${requestHash}:${responseHash}:${enclaveKeypair.publicHex}`
     );
 
     return NextResponse.json({
@@ -148,7 +135,7 @@ export async function POST(req: NextRequest) {
       envelope: {
         encryptedResponseBase64,
         ivHex: bytesToHex(responseIv),
-        ephemeralPublicKeyHex: ENCLAVE_KEYPAIR.publicHex,
+        ephemeralPublicKeyHex: enclaveKeypair.publicHex,
         signatureHex,
         requestHash,
         responseHash,

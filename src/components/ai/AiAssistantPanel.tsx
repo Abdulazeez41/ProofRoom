@@ -214,8 +214,18 @@ export function AiAssistantPanel({
       setChatHistory((prev) => [newEntry, ...prev]);
     } catch (err) {
       console.error("AI query error:", err);
-      // HARD RULE #6: Exact message on verification failure
-      setVerificationError("Verification failed. Your confidential request was not sent.");
+      const msg = (err as Error).message || "";
+      const isVerificationFail =
+        msg.includes("Verification") ||
+        msg.includes("attestation") ||
+        msg.includes("quote") ||
+        msg.includes("signature");
+
+      if (isVerificationFail) {
+        setVerificationError("Verification failed. Your confidential request was not sent.");
+      } else {
+        setVerificationError(`Inference request notice: ${msg}`);
+      }
       onVerificationStateChange?.("FAILED");
     } finally {
       setLoading(false);
@@ -285,8 +295,9 @@ export function AiAssistantPanel({
           <div className="space-y-1">
             <p className="font-semibold text-sm">{verificationError}</p>
             <p className="text-[11px] text-muted">
-              Because attestation verification failed, fail-closed enforcement prevented the client
-              from transmitting prompt context to the network.
+              {verificationError.includes("Verification failed")
+                ? "Because attestation verification failed, fail-closed enforcement prevented the client from transmitting prompt context to the network."
+                : "The confidential inference service encountered an issue processing your request. Please try again."}
             </p>
           </div>
         </div>
