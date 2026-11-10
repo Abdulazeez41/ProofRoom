@@ -464,7 +464,7 @@ export default function RoomWorkspacePage({
                         icon={<Eye className="w-3.5 h-3.5" />}
                         className="text-xs py-1.5 px-3 min-h-[36px]"
                       >
-                        Inspect
+                        Decrypt & View
                       </Button>
                     </div>
                   </div>
