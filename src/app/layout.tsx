@@ -14,7 +14,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "ProofRoom — Private intelligence. Verifiable trust.",
+  title: "ProofRoom - Private intelligence. Verifiable trust.",
   description:
     "Verifiably private AI virtual data room powered by Intel TDX confidential computing and NEAR Testnet on-chain audit receipts.",
   keywords: [

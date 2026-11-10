@@ -26,9 +26,11 @@ export async function saveEncryptedBlob(
   storageKey: string,
   ciphertext: Uint8Array
 ): Promise<StorageUploadResult> {
-  const sanitizedKey = storageKey.replace(/[^a-zA-Z0-9_-]/g, "_") + ".enc";
-  const filePath = path.join(LOCAL_STORAGE_DIR, sanitizedKey);
+  const sanitizedKey = storageKey.endsWith(".enc")
+    ? storageKey.replace(/[^a-zA-Z0-9_.-]/g, "_")
+    : storageKey.replace(/[^a-zA-Z0-9_-]/g, "_") + ".enc";
 
+  const filePath = path.join(LOCAL_STORAGE_DIR, sanitizedKey);
   await fs.promises.writeFile(filePath, Buffer.from(ciphertext));
 
   return {
@@ -40,16 +42,30 @@ export async function saveEncryptedBlob(
 /**
  * Retrieves an encrypted binary document blob.
  * Returns raw ciphertext bytes.
+ * Safely resolves both raw storage keys and .enc filenames.
  */
 export async function getEncryptedBlob(storageKey: string): Promise<Uint8Array | null> {
   const sanitizedKey = storageKey.replace(/[^a-zA-Z0-9_.-]/g, "_");
-  const filePath = path.join(LOCAL_STORAGE_DIR, sanitizedKey);
 
-  if (!fs.existsSync(filePath)) {
+  const candidatePaths = [
+    path.join(LOCAL_STORAGE_DIR, sanitizedKey),
+    path.join(LOCAL_STORAGE_DIR, `${sanitizedKey}.enc`),
+    sanitizedKey.endsWith(".enc") ? path.join(LOCAL_STORAGE_DIR, sanitizedKey.slice(0, -4)) : null,
+  ].filter(Boolean) as string[];
+
+  let targetPath: string | null = null;
+  for (const p of candidatePaths) {
+    if (fs.existsSync(p)) {
+      targetPath = p;
+      break;
+    }
+  }
+
+  if (!targetPath) {
     return null;
   }
 
-  const buffer = await fs.promises.readFile(filePath);
+  const buffer = await fs.promises.readFile(targetPath);
   return new Uint8Array(buffer);
 }
 
@@ -58,11 +74,18 @@ export async function getEncryptedBlob(storageKey: string): Promise<Uint8Array |
  */
 export async function deleteEncryptedBlob(storageKey: string): Promise<boolean> {
   const sanitizedKey = storageKey.replace(/[^a-zA-Z0-9_.-]/g, "_");
-  const filePath = path.join(LOCAL_STORAGE_DIR, sanitizedKey);
 
-  if (fs.existsSync(filePath)) {
-    await fs.promises.unlink(filePath);
-    return true;
+  const candidatePaths = [
+    path.join(LOCAL_STORAGE_DIR, sanitizedKey),
+    path.join(LOCAL_STORAGE_DIR, `${sanitizedKey}.enc`),
+    sanitizedKey.endsWith(".enc") ? path.join(LOCAL_STORAGE_DIR, sanitizedKey.slice(0, -4)) : null,
+  ].filter(Boolean) as string[];
+
+  for (const p of candidatePaths) {
+    if (fs.existsSync(p)) {
+      await fs.promises.unlink(p);
+      return true;
+    }
   }
   return false;
 }

@@ -20,12 +20,31 @@ export function VaultFallback({
     inline: "w-16 h-16",
   };
 
-  const stateColors: Record<VaultState, { vault: string; ring: string; text: string }> = {
+  const stateColors: Record<
+    VaultState,
+    { vault: string; ring: string; text: string }
+  > = {
     idle: { vault: "#0F5C47", ring: "rgba(22, 33, 28, 0.2)", text: "Idle" },
-    encrypting: { vault: "#0F7A52", ring: "#0F7A52", text: "Encrypting in browser" },
-    verifying: { vault: "#3E63D9", ring: "#3E63D9", text: "Checking hardware enclave" },
-    anchored: { vault: "#A86A10", ring: "#A86A10", text: "Anchored on NEAR Testnet" },
-    failed: { vault: "#B63A3A", ring: "#B63A3A", text: "Verification failed — closed" },
+    encrypting: {
+      vault: "#0F7A52",
+      ring: "#0F7A52",
+      text: "Encrypting in browser",
+    },
+    verifying: {
+      vault: "#3E63D9",
+      ring: "#3E63D9",
+      text: "Checking hardware enclave",
+    },
+    anchored: {
+      vault: "#A86A10",
+      ring: "#A86A10",
+      text: "Anchored on NEAR Testnet",
+    },
+    failed: {
+      vault: "#B63A3A",
+      ring: "#B63A3A",
+      text: "Verification failed - closed",
+    },
   };
 
   const current = stateColors[state] || stateColors.idle;
@@ -57,11 +76,25 @@ export function VaultFallback({
 
         {/* Participant 1 */}
         <circle cx="24" cy="100" r="8" fill="#3E63D9" />
-        <line x1="32" y1="100" x2="68" y2="100" stroke={current.ring} strokeWidth="1.5" />
+        <line
+          x1="32"
+          y1="100"
+          x2="68"
+          y2="100"
+          stroke={current.ring}
+          strokeWidth="1.5"
+        />
 
         {/* Participant 2 */}
         <circle cx="176" cy="100" r="8" fill="#3E63D9" />
-        <line x1="168" y1="100" x2="132" y2="100" stroke={current.ring} strokeWidth="1.5" />
+        <line
+          x1="168"
+          y1="100"
+          x2="132"
+          y2="100"
+          stroke={current.ring}
+          strokeWidth="1.5"
+        />
 
         {/* Central Isometric Vault Cube */}
         <g transform="translate(100, 100)">
@@ -95,7 +128,15 @@ export function VaultFallback({
             cx="0"
             cy="10"
             r="10"
-            fill={state === "verifying" ? "#3E63D9" : state === "anchored" ? "#A86A10" : state === "failed" ? "#B63A3A" : "#5FCFA6"}
+            fill={
+              state === "verifying"
+                ? "#3E63D9"
+                : state === "anchored"
+                  ? "#A86A10"
+                  : state === "failed"
+                    ? "#B63A3A"
+                    : "#5FCFA6"
+            }
             className="animate-pulse"
           />
         </g>
@@ -131,7 +172,13 @@ export function VaultFallback({
             width="14"
             height="19"
             rx="2"
-            fill={state === "encrypting" ? "#0F7A52" : state === "failed" ? "#B63A3A" : "#F7F1E3"}
+            fill={
+              state === "encrypting"
+                ? "#0F7A52"
+                : state === "failed"
+                  ? "#B63A3A"
+                  : "#F7F1E3"
+            }
             stroke="var(--ink, #16211C)"
             strokeWidth="1"
             transform={`rotate(${doc.rot} ${doc.x} ${doc.y})`}

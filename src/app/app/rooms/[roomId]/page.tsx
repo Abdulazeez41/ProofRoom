@@ -35,7 +35,8 @@ import { useVaultState, VaultState } from "@/hooks/useVaultState";
 import { AiAssistantPanel } from "@/components/ai/AiAssistantPanel";
 import { DocumentUploadModal } from "@/components/documents/DocumentUploadModal";
 import { useWallet } from "@/context/WalletContext";
-import { decryptDocumentBytes, base64ToBytes } from "@/lib/crypto/aes-gcm";
+import { decryptDocumentBytes } from "@/lib/crypto/aes-gcm";
+import { hexToBytes } from "@noble/hashes/utils.js";
 import { unwrapKeyEnvelope } from "@/lib/crypto/key-wrapping";
 import { getExplorerTxUrl } from "@/lib/near/config";
 import clsx from "clsx";
@@ -174,12 +175,13 @@ export default function RoomWorkspacePage({
       const dek = await unwrapKeyEnvelope(envData.envelope, userKeyPair.privateKeyHex);
       const blobRes = await fetch(`/api/documents/${docId}/blob?accountId=${accountId}`);
       if (!blobRes.ok) {
-        throw new Error("Failed to download encrypted document blob.");
+        const errJson = await blobRes.json().catch(() => null);
+        throw new Error(errJson?.error || `Failed to download encrypted document blob (HTTP ${blobRes.status}).`);
       }
 
       const arrayBuffer = await blobRes.arrayBuffer();
       const ciphertext = new Uint8Array(arrayBuffer);
-      const iv = base64ToBytes(envData.envelope.ivHex || envData.envelope.wrappedKeyBase64.substring(0, 16));
+      const iv = hexToBytes(envData.envelope.ivHex || "0".repeat(24));
       const decrypted = await decryptDocumentBytes(ciphertext, iv, dek);
       const text = new TextDecoder().decode(decrypted);
 

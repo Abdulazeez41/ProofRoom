@@ -69,18 +69,26 @@ export async function encryptDocumentBytes(
   );
 
   const ciphertext = new Uint8Array(encryptedBuffer);
-  const ciphertextHash = computeSha256(ciphertext);
+
+  // Prepend 12-byte IV to ciphertext so the blob is self-contained: [12-byte IV || ciphertext + 16-byte tag]
+  const packedCiphertext = new Uint8Array(iv.length + ciphertext.length);
+  packedCiphertext.set(iv, 0);
+  packedCiphertext.set(ciphertext, iv.length);
+
+  const ciphertextHash = computeSha256(packedCiphertext);
 
   return {
-    ciphertext,
+    ciphertext: packedCiphertext,
     iv,
     ciphertextHash,
-    byteLength: ciphertext.byteLength,
+    byteLength: packedCiphertext.byteLength,
   };
 }
 
 /**
  * Decrypts AES-256-GCM ciphertext bytes using the provided DEK and IV.
+ * Automatically handles self-contained packed blobs [12-byte IV || ciphertext + 16-byte tag]
+ * with seamless fallback to explicit IVs.
  */
 export async function decryptDocumentBytes(
   ciphertext: Uint8Array,
@@ -104,6 +112,23 @@ export async function decryptDocumentBytes(
     ["decrypt"]
   );
 
+  // Strategy 1: If ciphertext is packed [12-byte IV || ciphertext + 16-byte tag]
+  if (ciphertext.length > 28) {
+    const packedIv = ciphertext.slice(0, 12);
+    const packedBody = ciphertext.slice(12);
+    try {
+      const decrypted = await cryptoSubtle.decrypt(
+        { name: "AES-GCM", iv: packedIv as BufferSource, tagLength: 128 },
+        cryptoKey,
+        packedBody as BufferSource
+      );
+      return new Uint8Array(decrypted);
+    } catch {
+      // Fall through to Strategy 2 with explicit iv
+    }
+  }
+
+  // Strategy 2: Use provided iv directly with full ciphertext
   const decryptedBuffer = await cryptoSubtle.decrypt(
     {
       name: "AES-GCM",

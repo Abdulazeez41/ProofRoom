@@ -1,8 +1,9 @@
-# ProofRoom — Intel TDX Attestation & Verifier Integration
+# ProofRoom - Intel TDX Attestation & Verifier Integration
 
 ## 1. What is Intel TDX Confidential Computing?
 
 Intel Trust Domain Extensions (TDX) deploy hardware-isolated virtual machines, known as Trust Domains (TDs). A Trust Domain's memory contents and CPU state are encrypted by a dedicated hardware encryption engine (MKTME) using hardware-generated keys that are inaccessible to:
+
 - The host operating system
 - The hypervisor (KVM/QEMU)
 - Cloud infrastructure administrators
@@ -11,6 +12,7 @@ Intel Trust Domain Extensions (TDX) deploy hardware-isolated virtual machines, k
 ## 2. NEAR AI Cloud Confidential Architecture
 
 NEAR AI Cloud hosts AI inference workloads inside Intel TDX enclaves. When a model request is processed:
+
 1. The model server generates a hardware-signed **Intel TDX Quote**.
 2. The quote contains a measurement of the enclave runtime:
    - **MRTD** (Measurement of the initial RAM and firmware code loaded into the Trust Domain)
@@ -53,6 +55,7 @@ ProofRoom implements the verification flow documented in [`nearai/nearai-cloud-v
 ## 4. Test Mode & Controlled Failure Injection
 
 To allow rigorous technical verification:
+
 - The ProofRoom Security Center provides an interactive **Verification Test Harness**.
 - Allows injecting tampered quotes, simulated signature mismatches, or expired nonces.
 - Proves in real time that ProofRoom immediately halts transmission and displays a clear fail-closed alert.

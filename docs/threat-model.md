@@ -1,4 +1,4 @@
-# ProofRoom — Threat Model & Security Boundaries
+# ProofRoom - Threat Model & Security Boundaries
 
 ## 1. System Assumptions
 
@@ -8,15 +8,15 @@ ProofRoom is designed to enforce verifiable data confidentiality and integrity u
 
 The architecture protects against the following threat vectors:
 
-| Threat Vector | Mitigating Control | Cryptographic / Technical Mechanism |
-|---|---|---|
-| **Compromised Storage Provider** | Document blobs stored in S3/disk are encrypted | AES-256-GCM client-side encryption. Stored blobs are indistinguishable from random bytes; storage provider has zero access to DEK. |
-| **Malicious Backend Operator / DB Compromise** | Server database holds no plaintext documents, private keys, or raw prompt transcripts | Server stores only wrapped key envelopes, ciphertext hashes, and opaque metadata. Private keys remain exclusively in client memory. |
-| **Unauthorized Data Room Access** | Cryptographic envelope isolation | Key envelopes are encrypted for authorized participant public keys (X25519). An unauthorized user cannot unwrap document keys even if given database read access. |
-| **Infrastructure Snoop on AI Inference** | Cloud provider cannot read memory during model processing | Intel TDX hardware-isolated Trusted Execution Environment (TEE). Memory encryption engine isolates guest VM from host hypervisor. |
-| **Tampered / Forged AI Responses** | Enclave response integrity verification | Cryptographic response signature verified against model/gateway public key bound to the verified TEE quote. |
-| **Replay Attacks on Attestation or Auth** | Nonce freshness validation & ephemeral challenge signing | NEP-413 nonce binding for authentication; single-use cryptographic nonces for TEE attestation verification. |
-| **Auditing / History Tampering** | Tamper-evident on-chain recording | Privacy-preserving activity commitments and cryptographic hashes anchored to NEAR Testnet smart contract. |
+| Threat Vector                                  | Mitigating Control                                                                    | Cryptographic / Technical Mechanism                                                                                                                               |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Compromised Storage Provider**               | Document blobs stored in S3/disk are encrypted                                        | AES-256-GCM client-side encryption. Stored blobs are indistinguishable from random bytes; storage provider has zero access to DEK.                                |
+| **Malicious Backend Operator / DB Compromise** | Server database holds no plaintext documents, private keys, or raw prompt transcripts | Server stores only wrapped key envelopes, ciphertext hashes, and opaque metadata. Private keys remain exclusively in client memory.                               |
+| **Unauthorized Data Room Access**              | Cryptographic envelope isolation                                                      | Key envelopes are encrypted for authorized participant public keys (X25519). An unauthorized user cannot unwrap document keys even if given database read access. |
+| **Infrastructure Snoop on AI Inference**       | Cloud provider cannot read memory during model processing                             | Intel TDX hardware-isolated Trusted Execution Environment (TEE). Memory encryption engine isolates guest VM from host hypervisor.                                 |
+| **Tampered / Forged AI Responses**             | Enclave response integrity verification                                               | Cryptographic response signature verified against model/gateway public key bound to the verified TEE quote.                                                       |
+| **Replay Attacks on Attestation or Auth**      | Nonce freshness validation & ephemeral challenge signing                              | NEP-413 nonce binding for authentication; single-use cryptographic nonces for TEE attestation verification.                                                       |
+| **Auditing / History Tampering**               | Tamper-evident on-chain recording                                                     | Privacy-preserving activity commitments and cryptographic hashes anchored to NEAR Testnet smart contract.                                                         |
 
 ## 3. Explicit Non-Goals & Out-of-Scope Risks
 
@@ -34,6 +34,7 @@ In alignment with realistic enterprise security standards, ProofRoom explicitly 
 ## 4. Fail-Closed Security Policy
 
 ProofRoom enforces a strict **fail-closed** discipline across all verification stages:
+
 - If Intel TDX quote verification fails: **Abort request; do not transmit context.**
 - If signing-key binding check fails: **Abort request; do not transmit context.**
 - If response signature validation fails: **Reject response; display verification failure warning.**

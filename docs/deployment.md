@@ -1,4 +1,4 @@
-# ProofRoom — Deployment and Configuration Guide
+# ProofRoom - Deployment and Configuration Guide
 
 ## 1. Prerequisites
 
@@ -17,6 +17,7 @@ cp .env.example .env
 ```
 
 Key environment settings:
+
 - `NEXT_PUBLIC_NEAR_NETWORK`: `testnet`
 - `NEXT_PUBLIC_NEAR_RPC_URL`: `https://rpc.testnet.near.org`
 - `NEXT_PUBLIC_NEAR_CONTRACT_ID`: Deployed testnet contract account

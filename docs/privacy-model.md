@@ -1,4 +1,4 @@
-# ProofRoom — Privacy Model
+# ProofRoom - Privacy Model
 
 ## Overview
 
