@@ -155,6 +155,34 @@ export default function RoomWorkspacePage({
     (p) => p.participantNearAccount === accountId
   );
   const isAuthorized = isOwner || currentParticipant?.permissionStatus === "ACTIVE";
+  const isPendingInvite = Boolean(currentParticipant && currentParticipant.permissionStatus === "INVITED");
+  const [acceptingInvite, setAcceptingInvite] = useState(false);
+
+  const handleAcceptInvite = async () => {
+    if (!accountId || !room) return;
+    setAcceptingInvite(true);
+    try {
+      const res = await fetch("/api/participants", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          roomId: room.id,
+          participantAccountId: accountId,
+          action: "ACCEPT",
+          accountId,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || "Failed to accept invitation");
+      }
+      await fetchRoom();
+    } catch (err) {
+      alert(`Accept invitation error: ${(err as Error).message}`);
+    } finally {
+      setAcceptingInvite(false);
+    }
+  };
 
   // Client-Side Decryption
   const handleDownloadAndDecrypt = async (docId: string, docName: string) => {
@@ -367,6 +395,30 @@ export default function RoomWorkspacePage({
         </div>
       </GlassCard>
 
+      {/* Pending Invitation Banner if invited but not accepted */}
+      {isPendingInvite && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-accent/10 border border-accent/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-in fade-in">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 font-semibold text-ink text-sm">
+              <Sparkles className="w-4 h-4 text-accent" aria-hidden="true" />
+              <span>You have a pending invitation to this room</span>
+            </div>
+            <p className="text-muted leading-relaxed">
+              <strong className="text-ink font-mono">{room.owner.nearAccountId}</strong> invited you to access this confidential room. Accept the invitation to activate your session, inspect documents, and query the confidential AI enclave.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="primary"
+            loading={acceptingInvite}
+            onClick={handleAcceptInvite}
+            className="shrink-0"
+          >
+            Accept invitation
+          </Button>
+        </div>
+      )}
+
       {/* Mobile Tabs Switcher */}
       <div className="lg:hidden flex items-center p-1 rounded-2xl glass border border-line">
         <button
@@ -528,8 +580,20 @@ export default function RoomWorkspacePage({
 
                   <div className="flex items-center gap-2">
                     <SecurityBadge
-                      status={p.permissionStatus === "ACTIVE" ? "VERIFIED" : "REVOKED"}
-                      label={p.permissionStatus === "ACTIVE" ? "Active" : "Revoked"}
+                      status={
+                        p.permissionStatus === "ACTIVE"
+                          ? "VERIFIED"
+                          : p.permissionStatus === "INVITED"
+                          ? "PENDING"
+                          : "REVOKED"
+                      }
+                      label={
+                        p.permissionStatus === "ACTIVE"
+                          ? "Active"
+                          : p.permissionStatus === "INVITED"
+                          ? "Pending invite"
+                          : "Revoked"
+                      }
                     />
                     {isOwner && p.permissionStatus === "ACTIVE" && (
                       <button

@@ -34,6 +34,7 @@ interface RoomSummary {
   status: string;
   createdAt: string;
   owner: { nearAccountId: string };
+  participants?: { participantNearAccount: string; permissionStatus: string }[];
   _count: { documents: number; participants: number; auditReceipts: number };
 }
 
@@ -88,6 +89,16 @@ export default function DashboardPage() {
   const totalDocs = rooms.reduce((acc, r) => acc + (r._count?.documents || 0), 0);
   const totalParticipants = rooms.reduce((acc, r) => acc + (r._count?.participants || 0), 0);
   const totalReceipts = rooms.reduce((acc, r) => acc + (r._count?.auditReceipts || 0), 0);
+
+  // Compute pending invitations for current user
+  const pendingInvites = rooms.filter(
+    (r) =>
+      Boolean(accountId) &&
+      r.owner.nearAccountId !== accountId &&
+      r.participants?.some(
+        (p) => p.participantNearAccount === accountId && p.permissionStatus === "INVITED"
+      )
+  );
 
   return (
     <div className="space-y-8 animate-in fade-in duration-150">
@@ -160,6 +171,44 @@ export default function DashboardPage() {
         </GlassCard>
       </div>
 
+      {/* Pending Invitations Banner for Collaborator */}
+      {pendingInvites.length > 0 && (
+        <div className="p-5 rounded-2xl bg-accent/10 border border-accent/30 space-y-3 animate-in fade-in">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+              <Sparkles className="w-4 h-4 text-accent" aria-hidden="true" />
+              <span>Pending room invitations ({pendingInvites.length})</span>
+            </div>
+            <span className="text-[10px] font-mono uppercase bg-accent/20 text-accent font-semibold px-2 py-0.5 rounded">
+              Action required
+            </span>
+          </div>
+          <p className="text-xs text-muted leading-relaxed">
+            You have been granted access to the following confidential rooms. Open a room to review and activate your access.
+          </p>
+          <div className="space-y-2 pt-1">
+            {pendingInvites.map((r) => (
+              <div
+                key={r.id}
+                className="p-3.5 rounded-xl glass border border-line flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+              >
+                <div>
+                  <div className="font-semibold text-ink text-sm">{r.name}</div>
+                  <div className="text-muted text-[11px]">
+                    Invited by <span className="font-mono text-ink">{r.owner.nearAccountId}</span> · {r.companyName}
+                  </div>
+                </div>
+                <Link href={`/app/rooms/${r.id}`}>
+                  <Button size="sm" variant="primary">
+                    Review & accept invite
+                  </Button>
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Main Grid: Recent Rooms & Security Center Snapshot */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Recent Rooms */}
@@ -217,6 +266,11 @@ export default function DashboardPage() {
                         <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-line/20 text-muted">
                           {room.purpose}
                         </span>
+                        {room.participants?.find((p) => p.participantNearAccount === accountId)?.permissionStatus === "INVITED" && (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-accent/20 text-accent font-semibold">
+                            Pending invite
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-muted">
                         Company: <strong className="text-ink">{room.companyName}</strong> · Owner:{" "}

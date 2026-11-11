@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       },
       update: {
         participantUserId: participantUser.id,
-        permissionStatus: "ACTIVE",
+        permissionStatus: "INVITED",
         permissionCommitment,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
         revokedAt: null,
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
         roomId: room.id,
         participantUserId: participantUser.id,
         participantNearAccount: lowerParticipant,
-        permissionStatus: "ACTIVE",
+        permissionStatus: "INVITED",
         permissionCommitment,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
       },
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const { roomId, participantAccountId, action, ownerAccountId } = body;
+    const { roomId, participantAccountId, action, ownerAccountId, accountId: callerAccountId } = body;
 
     if (!roomId || !participantAccountId || !action) {
       return NextResponse.json({ error: "roomId, participantAccountId, and action are required" }, { status: 400 });
@@ -99,13 +99,16 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Room not found" }, { status: 404 });
     }
 
-    if (ownerAccountId && room.owner.nearAccountId !== ownerAccountId.toLowerCase()) {
-      return NextResponse.json({ error: "Only room owner can alter participant permissions" }, { status: 403 });
-    }
-
     const lowerParticipant = participantAccountId.toLowerCase();
+    const caller = (callerAccountId || ownerAccountId || "").toLowerCase();
+    const isOwner = Boolean(caller && room.owner.nearAccountId === caller);
+    const isSelf = Boolean(caller && caller === lowerParticipant);
 
     if (action === "REVOKE") {
+      if (!isOwner) {
+        return NextResponse.json({ error: "Only the room owner can revoke participant permissions" }, { status: 403 });
+      }
+
       const updated = await prisma.roomParticipant.update({
         where: {
           roomId_participantNearAccount: {
@@ -126,7 +129,11 @@ export async function PATCH(req: NextRequest) {
       });
     }
 
-    if (action === "ACTIVATE") {
+    if (action === "ACTIVATE" || action === "ACCEPT") {
+      if (!isOwner && !isSelf) {
+        return NextResponse.json({ error: "Unauthorized to accept this invitation" }, { status: 403 });
+      }
+
       const updated = await prisma.roomParticipant.update({
         where: {
           roomId_participantNearAccount: {

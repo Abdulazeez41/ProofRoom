@@ -173,6 +173,11 @@ export default function RoomsListPage() {
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-line/20 text-muted">
                       {room.purpose}
                     </span>
+                    {room.participants?.find((p) => p.participantNearAccount === accountId)?.permissionStatus === "INVITED" && (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-accent/20 text-accent font-semibold">
+                        Pending invite
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-muted">
                     Company: <strong className="text-ink">{room.companyName}</strong> · Owner:{" "}
