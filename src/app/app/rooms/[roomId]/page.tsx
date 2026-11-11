@@ -37,7 +37,7 @@ import { DocumentUploadModal } from "@/components/documents/DocumentUploadModal"
 import { useWallet } from "@/context/WalletContext";
 import { decryptDocumentBytes } from "@/lib/crypto/aes-gcm";
 import { hexToBytes } from "@noble/hashes/utils.js";
-import { unwrapKeyEnvelope } from "@/lib/crypto/key-wrapping";
+import { unwrapKeyEnvelope, createKeyEnvelope } from "@/lib/crypto/key-wrapping";
 import { getExplorerTxUrl } from "@/lib/near/config";
 import clsx from "clsx";
 
@@ -73,6 +73,14 @@ interface RoomData {
     version: number;
     encryptionAlgorithm: string;
     createdAt: string;
+    keyEnvelopes?: {
+      id: string;
+      recipientUserId: string;
+      recipient: {
+        id: string;
+        nearAccountId: string;
+      };
+    }[];
   }[];
   auditReceipts: {
     id: string;
@@ -148,6 +156,10 @@ export default function RoomWorkspacePage({
 
   useEffect(() => {
     fetchRoom();
+    const pollInterval = setInterval(() => {
+      fetchRoom();
+    }, 8000);
+    return () => clearInterval(pollInterval);
   }, [params.roomId, accountId]);
 
   const isOwner = Boolean(accountId && room?.owner.nearAccountId === accountId);
@@ -157,6 +169,109 @@ export default function RoomWorkspacePage({
   const isAuthorized = isOwner || currentParticipant?.permissionStatus === "ACTIVE";
   const isPendingInvite = Boolean(currentParticipant && currentParticipant.permissionStatus === "INVITED");
   const [acceptingInvite, setAcceptingInvite] = useState(false);
+
+  // Key synchronization state
+  const [isSyncingKeys, setIsSyncingKeys] = useState(false);
+  const [keySyncNotice, setKeySyncNotice] = useState<string | null>(null);
+  const syncInProgressRef = React.useRef(false);
+
+  // Automatic client-side key envelope synchronization
+  const syncMissingEnvelopes = async () => {
+    if (!room || !accountId || !userKeyPair || syncInProgressRef.current) return;
+
+    // Active participants with known public keys
+    const activeParticipantsWithKey = room.participants.filter(
+      (p) => p.permissionStatus === "ACTIVE" && p.user?.encryptionPublicKey
+    );
+
+    if (activeParticipantsWithKey.length === 0 || room.documents.length === 0) return;
+
+    // Check which documents need key envelopes for any active participant
+    const docsToSync: Array<{
+      doc: RoomData["documents"][0];
+      missing: typeof activeParticipantsWithKey;
+    }> = [];
+
+    for (const doc of room.documents) {
+      const missing = activeParticipantsWithKey.filter(
+        (p) =>
+          p.participantNearAccount !== accountId &&
+          !doc.keyEnvelopes?.some((ke) => ke.recipient.nearAccountId === p.participantNearAccount)
+      );
+      if (missing.length > 0) {
+        docsToSync.push({ doc, missing });
+      }
+    }
+
+    if (docsToSync.length === 0) return;
+
+    syncInProgressRef.current = true;
+    setIsSyncingKeys(true);
+    setKeySyncNotice(`Sealing zero-knowledge key envelopes for newly added participants...`);
+
+    try {
+      let provisionedCount = 0;
+
+      for (const { doc, missing } of docsToSync) {
+        // Fetch current user's envelope to unwrap DEK
+        const myEnvRes = await fetch(`/api/documents/${doc.opaqueDocumentId || doc.id}/envelope?accountId=${accountId}`);
+        const myEnvData = await myEnvRes.json();
+
+        if (!myEnvData.success || !myEnvData.envelope) {
+          continue; // Current user doesn't hold an envelope for this doc
+        }
+
+        // Unwrap DEK in browser memory
+        const dek = await unwrapKeyEnvelope(myEnvData.envelope, userKeyPair.privateKeyHex);
+
+        // Seal envelope for each missing participant using their public key
+        const newEnvelopes = [];
+        for (const p of missing) {
+          if (!p.user?.encryptionPublicKey) continue;
+          const sealedEnvelope = await createKeyEnvelope(dek, p.user.encryptionPublicKey);
+          newEnvelopes.push({
+            recipientAccountId: p.participantNearAccount,
+            envelope: sealedEnvelope,
+          });
+        }
+
+        if (newEnvelopes.length > 0) {
+          const postRes = await fetch(`/api/documents/${doc.opaqueDocumentId || doc.id}/envelope`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              senderAccountId: accountId,
+              envelopes: newEnvelopes,
+            }),
+          });
+          const postData = await postRes.json();
+          if (postData.success) {
+            provisionedCount += newEnvelopes.length;
+          }
+        }
+      }
+
+      if (provisionedCount > 0) {
+        setKeySyncNotice(`Key envelopes sealed and synchronized for ${provisionedCount} participant grant(s).`);
+        setTimeout(() => setKeySyncNotice(null), 6000);
+        await fetchRoom();
+      } else {
+        setKeySyncNotice(null);
+      }
+    } catch (err) {
+      console.warn("Key synchronization notice:", err);
+      setKeySyncNotice(null);
+    } finally {
+      setIsSyncingKeys(false);
+      syncInProgressRef.current = false;
+    }
+  };
+
+  useEffect(() => {
+    if (room && accountId && userKeyPair) {
+      syncMissingEnvelopes();
+    }
+  }, [room, accountId, userKeyPair]);
 
   const handleAcceptInvite = async () => {
     if (!accountId || !room) return;
@@ -170,6 +285,7 @@ export default function RoomWorkspacePage({
           participantAccountId: accountId,
           action: "ACCEPT",
           accountId,
+          encryptionPublicKey: userKeyPair?.publicKeyHex,
         }),
       });
       const data = await res.json();
@@ -197,6 +313,11 @@ export default function RoomWorkspacePage({
       const envData = await envRes.json();
 
       if (!envData.success || !envData.envelope) {
+        if (envData.error?.includes("Key envelope not found")) {
+          throw new Error(
+            `Key envelope pending: This document was uploaded before your account joined. Because ProofRoom is strictly zero-knowledge, the room owner (${room?.owner.nearAccountId}) must open this room in their browser to seal an encryption key envelope for your public key.`
+          );
+        }
         throw new Error(envData.error || "Failed to retrieve your document key envelope.");
       }
 
@@ -466,16 +587,50 @@ export default function RoomWorkspacePage({
                 <FileText className="w-4 h-4 text-accent" aria-hidden="true" />
                 <span>Documents ({room.documents.length})</span>
               </h2>
-              {isOwner && (
-                <button
-                  type="button"
-                  onClick={() => setIsUploadModalOpen(true)}
-                  className="text-xs text-accent hover:underline font-medium"
-                >
-                  + Add file
-                </button>
-              )}
+
+              <div className="flex items-center gap-2">
+                {isOwner && room.documents.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => syncMissingEnvelopes()}
+                    disabled={isSyncingKeys}
+                    className="text-xs text-muted hover:text-accent font-medium flex items-center gap-1 transition-colors disabled:opacity-50"
+                    title="Seal key envelopes for any newly active participants"
+                  >
+                    <RefreshCw className={clsx("w-3 h-3", isSyncingKeys && "animate-spin")} />
+                    <span>Sync keys</span>
+                  </button>
+                )}
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => setIsUploadModalOpen(true)}
+                    className="text-xs text-accent hover:underline font-medium"
+                  >
+                    + Add file
+                  </button>
+                )}
+              </div>
             </div>
+
+            {keySyncNotice && (
+              <div className="p-3 rounded-xl bg-info/10 border border-info/30 flex items-center gap-2 text-xs text-info animate-in fade-in">
+                <RefreshCw className={clsx("w-3.5 h-3.5 shrink-0", isSyncingKeys && "animate-spin")} />
+                <span>{keySyncNotice}</span>
+              </div>
+            )}
+
+            {!isOwner && isAuthorized && room.documents.some((d) => !d.keyEnvelopes?.some((ke) => ke.recipient.nearAccountId === accountId)) && (
+              <div className="p-3.5 rounded-xl bg-warn/10 border border-warn/30 flex items-start gap-2.5 text-xs text-ink animate-in fade-in">
+                <Lock className="w-4 h-4 text-warn shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-semibold text-warn">Zero-Knowledge Key Sealing Pending</p>
+                  <p className="text-muted">
+                    Documents were uploaded prior to your access approval. Because ProofRoom never stores decryption keys on the server, the room owner ({room.owner.nearAccountId}) must visit this room in their browser to automatically seal your encryption key envelopes.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {room.documents.length === 0 ? (
               <div className="p-6 text-center rounded-xl border border-dashed border-line text-xs text-muted space-y-2">
@@ -489,40 +644,72 @@ export default function RoomWorkspacePage({
               </div>
             ) : (
               <div className="space-y-2.5">
-                {room.documents.map((doc) => (
-                  <div
-                    key={doc.id}
-                    className="p-3.5 rounded-xl glass border border-line hover:border-accent/30 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                  >
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-3.5 h-3.5 text-accent shrink-0" aria-hidden="true" />
-                        <span className="font-semibold text-ink truncate">{doc.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-[11px] text-muted">
-                        <span>{doc.category}</span>
-                        <span>·</span>
-                        <span>{(doc.encryptedSize / 1024).toFixed(1)} KB</span>
-                        <span>·</span>
-                        <span className="font-mono text-ok">AES-256-GCM</span>
-                      </div>
-                    </div>
+                {room.documents.map((doc) => {
+                  const userHasEnvelope =
+                    isOwner ||
+                    doc.keyEnvelopes?.some((ke) => ke.recipient.nearAccountId === accountId);
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Button
-                        size="sm"
-                        variant="glass"
-                        disabled={!isAuthorized || decryptingDocId === (doc.opaqueDocumentId || doc.id)}
-                        loading={decryptingDocId === (doc.opaqueDocumentId || doc.id)}
-                        onClick={() => handleDownloadAndDecrypt(doc.opaqueDocumentId || doc.id, doc.name)}
-                        icon={<Eye className="w-3.5 h-3.5" />}
-                        className="text-xs py-1.5 px-3 min-h-[36px]"
-                      >
-                        Decrypt & View
-                      </Button>
+                  return (
+                    <div
+                      key={doc.id}
+                      className="p-3.5 rounded-xl glass border border-line hover:border-accent/30 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-3.5 h-3.5 text-accent shrink-0" aria-hidden="true" />
+                          <span className="font-semibold text-ink truncate">{doc.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px] text-muted">
+                          <span>{doc.category}</span>
+                          <span>·</span>
+                          <span>{(doc.encryptedSize / 1024).toFixed(1)} KB</span>
+                          <span>·</span>
+                          <span className="font-mono text-ok">AES-256-GCM</span>
+                          {!userHasEnvelope && !isOwner && (
+                            <>
+                              <span>·</span>
+                              <span className="text-warn font-medium">Key envelope pending</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {!userHasEnvelope && !isOwner ? (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-warn/10 text-warn border border-warn/20 text-[11px] font-medium"
+                              title="The room owner needs to open this room to seal an encryption key envelope for your account"
+                            >
+                              <Lock className="w-3 h-3" />
+                              Key pending
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="glass"
+                              onClick={() => handleDownloadAndDecrypt(doc.opaqueDocumentId || doc.id, doc.name)}
+                              className="text-xs py-1 px-2.5 min-h-[32px] text-muted hover:text-ink"
+                            >
+                              Check
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="glass"
+                            disabled={!isAuthorized || decryptingDocId === (doc.opaqueDocumentId || doc.id)}
+                            loading={decryptingDocId === (doc.opaqueDocumentId || doc.id)}
+                            onClick={() => handleDownloadAndDecrypt(doc.opaqueDocumentId || doc.id, doc.name)}
+                            icon={<Eye className="w-3.5 h-3.5" />}
+                            className="text-xs py-1.5 px-3 min-h-[36px]"
+                          >
+                            Decrypt & View
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </GlassCard>

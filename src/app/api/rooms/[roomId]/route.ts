@@ -38,6 +38,18 @@ export async function GET(
             version: true,
             encryptionAlgorithm: true,
             createdAt: true,
+            keyEnvelopes: {
+              select: {
+                id: true,
+                recipientUserId: true,
+                recipient: {
+                  select: {
+                    id: true,
+                    nearAccountId: true,
+                  },
+                },
+              },
+            },
           },
         },
         auditReceipts: {

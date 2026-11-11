@@ -70,12 +70,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           try {
             keyPair = JSON.parse(storedKeyMapStr);
           } catch {
-            const { generateUserEncryptionKeyPair } = await import("@/lib/crypto/key-wrapping");
-            keyPair = generateUserEncryptionKeyPair();
+            const { getDeterministicKeyPair } = await import("@/lib/crypto/key-wrapping");
+            keyPair = getDeterministicKeyPair(`proofroom:account:${targetAccount}:v1`);
+            localStorage.setItem(`proofroom_keys_${targetAccount}`, JSON.stringify(keyPair));
           }
         } else {
-          const { generateUserEncryptionKeyPair } = await import("@/lib/crypto/key-wrapping");
-          keyPair = generateUserEncryptionKeyPair();
+          const { getDeterministicKeyPair } = await import("@/lib/crypto/key-wrapping");
+          keyPair = getDeterministicKeyPair(`proofroom:account:${targetAccount}:v1`);
           localStorage.setItem(`proofroom_keys_${targetAccount}`, JSON.stringify(keyPair));
         }
       }

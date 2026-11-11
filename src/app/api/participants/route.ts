@@ -65,6 +65,9 @@ export async function POST(req: NextRequest) {
         permissionCommitment,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
       },
+      include: {
+        user: true,
+      },
     });
 
     return NextResponse.json({
@@ -134,6 +137,13 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: "Unauthorized to accept this invitation" }, { status: 403 });
       }
 
+      if (body.encryptionPublicKey) {
+        await prisma.user.update({
+          where: { nearAccountId: lowerParticipant },
+          data: { encryptionPublicKey: body.encryptionPublicKey },
+        });
+      }
+
       const updated = await prisma.roomParticipant.update({
         where: {
           roomId_participantNearAccount: {
@@ -144,6 +154,9 @@ export async function PATCH(req: NextRequest) {
         data: {
           permissionStatus: "ACTIVE",
           revokedAt: null,
+        },
+        include: {
+          user: true,
         },
       });
 
