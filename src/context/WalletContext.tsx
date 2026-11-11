@@ -60,18 +60,24 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
       // Ensure user has an X25519 keypair for document encryption
       let keyPair = userKeyPair;
-      const storedKeyMapStr = localStorage.getItem(`proofroom_keys_${targetAccount}`);
-      if (storedKeyMapStr) {
-        try {
-          keyPair = JSON.parse(storedKeyMapStr);
-        } catch {
+      if (targetAccount === "founder.testnet" || targetAccount === "investor.testnet") {
+        const { getDeterministicKeyPair } = await import("@/lib/crypto/key-wrapping");
+        keyPair = getDeterministicKeyPair(`proofroom:demo:${targetAccount}:v1`);
+        localStorage.setItem(`proofroom_keys_${targetAccount}`, JSON.stringify(keyPair));
+      } else {
+        const storedKeyMapStr = localStorage.getItem(`proofroom_keys_${targetAccount}`);
+        if (storedKeyMapStr) {
+          try {
+            keyPair = JSON.parse(storedKeyMapStr);
+          } catch {
+            const { generateUserEncryptionKeyPair } = await import("@/lib/crypto/key-wrapping");
+            keyPair = generateUserEncryptionKeyPair();
+          }
+        } else {
           const { generateUserEncryptionKeyPair } = await import("@/lib/crypto/key-wrapping");
           keyPair = generateUserEncryptionKeyPair();
+          localStorage.setItem(`proofroom_keys_${targetAccount}`, JSON.stringify(keyPair));
         }
-      } else {
-        const { generateUserEncryptionKeyPair } = await import("@/lib/crypto/key-wrapping");
-        keyPair = generateUserEncryptionKeyPair();
-        localStorage.setItem(`proofroom_keys_${targetAccount}`, JSON.stringify(keyPair));
       }
 
       // Step 1: Request single-use challenge from backend

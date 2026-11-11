@@ -1,15 +1,15 @@
 import { prisma } from "../src/lib/db/prisma";
 import { NORTHSTAR_DEMO_COMPANY, DEMO_DOCUMENTS } from "../src/lib/demo/northstar-data";
 import { generateDataEncryptionKey, encryptDocumentBytes } from "../src/lib/crypto/aes-gcm";
-import { generateUserEncryptionKeyPair, createKeyEnvelope } from "../src/lib/crypto/key-wrapping";
+import { generateUserEncryptionKeyPair, getDeterministicKeyPair, createKeyEnvelope } from "../src/lib/crypto/key-wrapping";
 import { computeRoomCommitment, computeParticipantCommitment, computePermissionCommitment, computeSha256 } from "../src/lib/crypto/hashing";
 import { saveEncryptedBlob } from "../src/lib/storage";
 
 async function main() {
   console.log("Seeding Northstar Technologies Demo Workspace...");
 
-  const founderKeys = generateUserEncryptionKeyPair();
-  const investorKeys = generateUserEncryptionKeyPair();
+  const founderKeys = getDeterministicKeyPair(`proofroom:demo:${NORTHSTAR_DEMO_COMPANY.founderAccount}:v1`);
+  const investorKeys = getDeterministicKeyPair(`proofroom:demo:${NORTHSTAR_DEMO_COMPANY.investorAccount}:v1`);
 
   const founderUser = await prisma.user.upsert({
     where: { nearAccountId: NORTHSTAR_DEMO_COMPANY.founderAccount },

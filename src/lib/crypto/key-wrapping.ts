@@ -30,6 +30,20 @@ export function generateUserEncryptionKeyPair(): KeyPair {
 }
 
 /**
+ * Derives a deterministic X25519 keypair from a seed string.
+ * Used for demo accounts so that pre-seeded documents can be decrypted across client sessions.
+ */
+export function getDeterministicKeyPair(seedString: string): KeyPair {
+  const seedBytes = new TextEncoder().encode(seedString);
+  const privateKey = sha256(seedBytes);
+  const publicKey = x25519.getPublicKey(privateKey);
+  return {
+    privateKeyHex: bytesToHex(privateKey),
+    publicKeyHex: bytesToHex(publicKey),
+  };
+}
+
+/**
  * Derives an X25519 public key from a private key.
  */
 export function getPublicKeyFromPrivate(privateKeyHex: string): string {

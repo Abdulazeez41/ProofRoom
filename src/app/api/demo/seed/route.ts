@@ -10,6 +10,7 @@ import {
 } from "@/lib/crypto/aes-gcm";
 import {
   generateUserEncryptionKeyPair,
+  getDeterministicKeyPair,
   createKeyEnvelope,
 } from "@/lib/crypto/key-wrapping";
 import {
@@ -22,9 +23,9 @@ import { saveEncryptedBlob } from "@/lib/storage";
 
 export async function POST() {
   try {
-    // 1. Create or ensure Founder and Investor users with X25519 public keys
-    const founderKeys = generateUserEncryptionKeyPair();
-    const investorKeys = generateUserEncryptionKeyPair();
+    // 1. Create or ensure Founder and Investor users with deterministic X25519 public keys
+    const founderKeys = getDeterministicKeyPair(`proofroom:demo:${NORTHSTAR_DEMO_COMPANY.founderAccount}:v1`);
+    const investorKeys = getDeterministicKeyPair(`proofroom:demo:${NORTHSTAR_DEMO_COMPANY.investorAccount}:v1`);
 
     const founderUser = await prisma.user.upsert({
       where: { nearAccountId: NORTHSTAR_DEMO_COMPANY.founderAccount },
