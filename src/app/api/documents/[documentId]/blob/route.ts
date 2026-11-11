@@ -11,7 +11,7 @@ export async function POST(
     const { documentId } = params;
 
     const document = await prisma.document.findFirst({
-      where: { OR: [{ id: documentId }, { opaqueDocumentId: documentId }] },
+      where: { OR: [{ id: documentId }, { opaqueDocumentId: documentId }, { name: documentId }] },
       include: { room: { include: { owner: true } } },
     });
 
@@ -67,7 +67,7 @@ export async function GET(
     const accountId = searchParams.get("accountId")?.toLowerCase();
 
     const document = await prisma.document.findFirst({
-      where: { OR: [{ id: documentId }, { opaqueDocumentId: documentId }] },
+      where: { OR: [{ id: documentId }, { opaqueDocumentId: documentId }, { name: documentId }] },
       include: {
         room: {
           include: {

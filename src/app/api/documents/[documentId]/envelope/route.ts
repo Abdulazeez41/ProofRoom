@@ -15,7 +15,7 @@ export async function GET(
     }
 
     const document = await prisma.document.findFirst({
-      where: { OR: [{ id: documentId }, { opaqueDocumentId: documentId }] },
+      where: { OR: [{ id: documentId }, { opaqueDocumentId: documentId }, { name: documentId }] },
       include: {
         room: {
           include: {

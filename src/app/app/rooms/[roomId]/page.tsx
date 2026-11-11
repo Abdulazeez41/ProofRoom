@@ -460,9 +460,9 @@ export default function RoomWorkspacePage({
                       <Button
                         size="sm"
                         variant="glass"
-                        disabled={!isAuthorized || decryptingDocId === doc.id}
-                        loading={decryptingDocId === doc.id}
-                        onClick={() => handleDownloadAndDecrypt(doc.id, doc.name)}
+                        disabled={!isAuthorized || decryptingDocId === (doc.opaqueDocumentId || doc.id)}
+                        loading={decryptingDocId === (doc.opaqueDocumentId || doc.id)}
+                        onClick={() => handleDownloadAndDecrypt(doc.opaqueDocumentId || doc.id, doc.name)}
                         icon={<Eye className="w-3.5 h-3.5" />}
                         className="text-xs py-1.5 px-3 min-h-[36px]"
                       >
