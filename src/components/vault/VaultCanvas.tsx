@@ -13,6 +13,7 @@ export interface VaultCanvasProps {
 
 export default function VaultCanvas({
   state = "idle",
+  size: canvasSize = "hero",
   className = "",
 }: VaultCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -35,6 +36,7 @@ export default function VaultCanvas({
 
     let animId: number;
     const reduce = window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+    const isHero = canvasSize === "hero";
 
     // Renderer matching prototype exactly
     const R = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true });
@@ -43,7 +45,10 @@ export default function VaultCanvas({
     // Scene & Camera
     const sc = new THREE.Scene();
     const cam = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
-    cam.position.set(0, 1.2, 11);
+    cam.position.set(0, isHero ? 1.7 : 1.2, 11);
+    if (isHero) {
+      cam.lookAt(0, 0.75, 0);
+    }
 
     // Lights
     sc.add(new THREE.AmbientLight(0xffffff, 0.85));
@@ -85,6 +90,9 @@ export default function VaultCanvas({
 
     // Geometries & meshes matching prototype 1:1
     const G = new THREE.Group();
+    if (isHero) {
+      G.position.y = 0.75; // Elevate 3D vault assembly above bottom HUD card
+    }
     sc.add(G);
 
     const vault = new THREE.Mesh(
@@ -217,6 +225,9 @@ export default function VaultCanvas({
       R.setSize(w, h, false);
       cam.aspect = w / h;
       cam.position.z = w < 600 ? 15 : 11;
+      if (isHero) {
+        cam.lookAt(0, 0.75, 0);
+      }
       cam.updateProjectionMatrix();
     }
 

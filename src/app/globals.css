@@ -312,7 +312,7 @@
   position: relative;
   border-radius: 28px;
   overflow: hidden;
-  min-height: 520px;
+  min-height: 550px;
   background: radial-gradient(120% 90% at 50% 20%, var(--solid), var(--bg2));
   border: 1px solid var(--line);
 }

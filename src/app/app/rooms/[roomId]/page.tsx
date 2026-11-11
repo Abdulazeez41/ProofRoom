@@ -388,7 +388,9 @@ export default function RoomWorkspacePage({
         body: JSON.stringify({
           roomId: room.id,
           participantAccountId: revokingParticipant,
+          action: "REVOKE",
           ownerAccountId: accountId || room.owner.nearAccountId,
+          accountId: accountId || room.owner.nearAccountId,
         }),
       });
 
