@@ -315,7 +315,7 @@ export function DocumentUploadModal({
             loading={uploading}
             onClick={handleUpload}
           >
-            {uploading ? "Locking & uploading..." : "Lock & upload document"}
+            {uploading ? "Encrypting & uploading..." : "Encrypt in browser & upload"}
           </Button>
           <Button size="md" variant="outline" onClick={onClose} disabled={uploading}>
             Cancel
