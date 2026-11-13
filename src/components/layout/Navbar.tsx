@@ -24,8 +24,8 @@ export function Navbar() {
   ];
 
   return (
-    <nav className="sticky top-0 z-50 w-full pt-2 sm:pt-3 px-3 sm:px-6 md:px-8 lg:px-12 xl:px-16">
-      <div className="bar glass w-full flex items-center justify-between gap-2 sm:gap-4 p-1.5 sm:p-2 sm:px-4 rounded-[18px] transition-colors">
+    <nav className="sticky top-0 z-50 w-full h-16 border-b border-line glass bg-solid/90 backdrop-blur-md transition-colors flex items-center">
+      <div className="w-full flex items-center justify-between gap-3 sm:gap-6 px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12">
         {/* Brand Logo */}
         <Link href="/" className="logo flex items-center gap-2 sm:gap-2.5 font-bold tracking-tight text-ink text-sm sm:text-base shrink-0">
           <i
@@ -38,7 +38,7 @@ export function Navbar() {
         </Link>
 
         {/* Desktop Links */}
-        <div className="links hidden md:flex items-center gap-5 text-sm text-muted">
+        <div className="links hidden md:flex items-center gap-5 lg:gap-7 text-sm text-muted">
           {navLinks.map((link) => {
             const isActive =
               pathname === link.href ||
@@ -59,7 +59,7 @@ export function Navbar() {
         </div>
 
         {/* Controls: Network Pill, Theme, Wallet */}
-        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {isConnected && <TestnetPill className="hidden sm:inline-flex" />}
 
           <ThemeToggle />
@@ -73,7 +73,7 @@ export function Navbar() {
                 aria-expanded={walletDropdownOpen}
               >
                 <span className="w-2 h-2 rounded-full bg-ok shrink-0" aria-hidden="true" />
-                <span className="truncate max-w-[85px] sm:max-w-[120px]">{accountId}</span>
+                <span className="truncate max-w-[100px] sm:max-w-[150px] md:max-w-[180px]">{accountId}</span>
                 <ChevronDown className="w-3.5 h-3.5 text-muted shrink-0" aria-hidden="true" />
               </button>
 
@@ -151,7 +151,7 @@ export function Navbar() {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden mt-2 p-4 rounded-2xl glass border border-line bg-solid/95 space-y-3">
+        <div className="md:hidden absolute top-16 left-0 right-0 w-full border-b border-line glass bg-solid/98 shadow-xl p-4 sm:p-6 space-y-3 z-50">
           {isConnected && (
             <div className="pb-2 border-b border-line flex items-center justify-between">
               <span className="text-xs font-mono text-ink truncate">{accountId}</span>
