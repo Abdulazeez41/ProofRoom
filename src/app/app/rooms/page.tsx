@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   FolderLock,
   PlusCircle,
@@ -27,12 +28,22 @@ interface RoomItem {
   _count: { documents: number; participants: number; auditReceipts: number };
 }
 
-export default function RoomsListPage() {
+function RoomsListContent() {
   const { accountId } = useWallet();
+  const searchParams = useSearchParams();
+  const filterQuery = searchParams.get("filter")?.toUpperCase();
+  const defaultTab = filterQuery === "SHARED" ? "SHARED" : filterQuery === "OWNED" ? "OWNED" : "ALL";
+
   const [rooms, setRooms] = useState<RoomItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterTab, setFilterTab] = useState<"ALL" | "OWNED" | "SHARED">("ALL");
+  const [filterTab, setFilterTab] = useState<"ALL" | "OWNED" | "SHARED">(defaultTab);
+
+  useEffect(() => {
+    if (filterQuery === "SHARED" || filterQuery === "OWNED" || filterQuery === "ALL") {
+      setFilterTab(filterQuery);
+    }
+  }, [filterQuery]);
 
   const fetchRooms = async () => {
     setLoading(true);
@@ -205,5 +216,20 @@ export default function RoomsListPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function RoomsListPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-12 text-center rounded-2xl glass text-xs text-muted space-y-2">
+          <RefreshCw className="w-5 h-5 animate-spin mx-auto text-accent" aria-hidden="true" />
+          <p>Loading rooms...</p>
+        </div>
+      }
+    >
+      <RoomsListContent />
+    </Suspense>
   );
 }

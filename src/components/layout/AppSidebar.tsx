@@ -6,9 +6,6 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   FolderLock,
-  Share2,
-  Files,
-  Activity,
   ShieldCheck,
   Settings,
   Plus,
@@ -25,10 +22,7 @@ export function AppSidebar() {
 
   const links = [
     { label: "Overview", href: "/app", icon: LayoutDashboard },
-    { label: "My rooms", href: "/app/rooms", icon: FolderLock },
-    { label: "Shared with me", href: "/app/rooms?filter=shared", icon: Share2 },
-    { label: "Documents", href: "/app/rooms?tab=documents", icon: Files },
-    { label: "Activity", href: "/app/rooms?tab=activity", icon: Activity },
+    { label: "Rooms", href: "/app/rooms", icon: FolderLock },
     { label: "Security center", href: "/app/security", icon: ShieldCheck },
     { label: "Settings", href: "/app/settings", icon: Settings },
   ];
